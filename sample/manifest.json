@@ -1,0 +1,15 @@
+{
+  "summary": "sample/summary.csv",
+  "processed": [
+    "sample/processed_2022-10-14.csv",
+    "sample/processed_2022-10-21.csv",
+    "sample/processed_2022-10-22.csv",
+    "sample/processed_2022-10-23.csv",
+    "sample/processed_2022-10-24.csv",
+    "sample/processed_2022-10-25.csv",
+    "sample/processed_2022-10-26.csv",
+    "sample/processed_2022-10-27.csv",
+    "sample/processed_2022-10-28.csv"
+  ],
+  "classAverage": "data/class_average_by_minute.csv"
+}

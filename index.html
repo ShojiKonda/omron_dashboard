@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Activity Rhythm Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Classroom Activity Data Viewer</p>
+        <h1>Activity Rhythm Dashboard</h1>
+        <p class="lead">
+          OMRON活動量計のsummaryファイルと1分ごとのprocessedファイルを読み込み、装着時間、歩数、METs時系列、全体平均との違いをブラウザ内で可視化します。
+        </p>
+      </div>
+      <div class="hero-card">
+        <span class="status-dot"></span>
+        <strong>データはサーバーへ送信されません</strong>
+        <small>CSVはこのブラウザ内で解析します</small>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel upload-panel">
+        <div class="section-title">
+          <span>1</span>
+          <div>
+            <h2>データを読み込む</h2>
+            <p>summary CSVを1つ、processed CSVを複数選択できます。</p>
+          </div>
+        </div>
+        <div class="drop-grid">
+          <label class="drop-zone" id="summaryDrop">
+            <input id="summaryInput" type="file" accept=".csv,text/csv" />
+            <strong>summary CSV</strong>
+            <small>例: demo_20221021.csv</small>
+            <span id="summaryFileName">未選択</span>
+          </label>
+          <label class="drop-zone" id="processedDrop">
+            <input id="processedInput" type="file" accept=".csv,text/csv" multiple />
+            <strong>processed CSV</strong>
+            <small>例: *_processed_20221021.csv</small>
+            <span id="processedFileName">未選択</span>
+          </label>
+          <label class="drop-zone optional" id="classDrop">
+            <input id="classAverageInput" type="file" accept=".csv,text/csv" />
+            <strong>全体平均 CSV 任意</strong>
+            <small>minute,time,class_mean_mets,class_sd_mets,n</small>
+            <span id="classFileName">サンプル平均を使用</span>
+          </label>
+        </div>
+        <div class="button-row">
+          <button id="loadSampleBtn" class="primary">サンプルデータを読み込む</button>
+          <button id="clearBtn">クリア</button>
+        </div>
+        <details class="hint">
+          <summary>対応するCSV形式</summary>
+          <ul>
+            <li>summary: OMRON出力形式、または date, weekday, steps, wear_minutes などの簡易形式</li>
+            <li>processed: minute, time, METs, flag の4列形式。ヘッダーなしでも可</li>
+            <li>文字コード: UTF-8 / Shift-JIS / CP932 を自動判定します</li>
+          </ul>
+        </details>
+      </section>
+
+      <section class="dashboard-grid">
+        <article class="card accent">
+          <span class="card-label">解析対象日数</span>
+          <strong id="validDays">0日</strong>
+          <small id="validDaysNote">データ未読込</small>
+        </article>
+        <article class="card">
+          <span class="card-label">平均歩数</span>
+          <strong id="avgSteps">-</strong>
+          <small>summaryから算出</small>
+        </article>
+        <article class="card">
+          <span class="card-label">平均装着時間</span>
+          <strong id="avgWear">-</strong>
+          <small>600分未満は注意</small>
+        </article>
+        <article class="card">
+          <span class="card-label">平均METs</span>
+          <strong id="avgMets">-</strong>
+          <small>processedから算出</small>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="section-title">
+          <span>2</span>
+          <div>
+            <h2>装着状況と日別サマリー</h2>
+            <p>データの信頼性を先に確認します。</p>
+          </div>
+        </div>
+        <div id="qualityList" class="quality-list empty">CSVを読み込むと、日別の装着時間と解析可否を表示します。</div>
+      </section>
+
+      <section class="panel chart-panel">
+        <div class="section-title compact-title">
+          <span>3</span>
+          <div>
+            <h2>METs時系列: 自分 vs 全体平均</h2>
+            <p>授業時間帯、平均±標準偏差、高活動区間を重ねて確認します。</p>
+          </div>
+        </div>
+        <div class="control-row">
+          <label>表示対象
+            <select id="daySelect"></select>
+          </label>
+          <label>講義時間
+            <input id="lectureBlocks" value="08:50-10:20,10:30-12:00,13:30-15:00,15:10-16:40,16:50-18:20" />
+          </label>
+          <button id="redrawBtn">再描画</button>
+        </div>
+        <div class="legend">
+          <span><i class="line orange"></i>あなた</span>
+          <span><i class="line blue"></i>全体平均</span>
+          <span><i class="band"></i>全体平均±SD</span>
+          <span><i class="lecture"></i>講義時間</span>
+        </div>
+        <canvas id="timeseriesCanvas" width="1180" height="460" aria-label="METs time-series chart"></canvas>
+      </section>
+
+      <section class="split">
+        <article class="panel">
+          <div class="section-title">
+            <span>4</span>
+            <div>
+              <h2>曜日間比較</h2>
+              <p>歩数、装着時間、活動量の違いを比較します。</p>
+            </div>
+          </div>
+          <canvas id="weekdayCanvas" width="720" height="420" aria-label="weekday comparison"></canvas>
+        </article>
+        <article class="panel">
+          <div class="section-title">
+            <span>5</span>
+            <div>
+              <h2>活動リズムヒートマップ</h2>
+              <p>横軸が時刻、縦軸が日付、色がMETsです。</p>
+            </div>
+          </div>
+          <canvas id="heatmapCanvas" width="720" height="420" aria-label="activity heatmap"></canvas>
+        </article>
+      </section>
+
+      <section class="panel interpretation-panel">
+        <div class="section-title">
+          <span>6</span>
+          <div>
+            <h2>考察サポート</h2>
+            <p>グラフから読み取れる特徴と、レポート用の問いを自動生成します。</p>
+          </div>
+        </div>
+        <div id="insights" class="insights empty">データを読み込むと、考察のヒントを表示します。</div>
+      </section>
+    </main>
+
+    <footer>
+      <p>Activity Rhythm Dashboard. Static classroom web app. Uploaded files stay in the browser.</p>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>
