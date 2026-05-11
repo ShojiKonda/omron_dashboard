@@ -388,3 +388,71 @@ canvas {
 .summary-wide canvas {
   border-radius: 12px;
 }
+
+/* v9 unified background: one graphite surface across page, panels, chart cards, and canvas */
+:root {
+  --bg: #111827;
+  --panel: #111827;
+  --chart-bg: #111827;
+  --ink: #e8eef7;
+  --muted: #9aa8bd;
+  --line: rgba(148, 163, 184, 0.30);
+  --shadow: none;
+}
+
+html,
+body {
+  background: #111827 !important;
+}
+
+.hero,
+.layout,
+.panel,
+.chart-panel.panel,
+.stat-card,
+.mini-chart,
+.summary-wide,
+.upload-panel,
+footer {
+  background: #111827 !important;
+  background-image: none !important;
+}
+
+.panel,
+.chart-panel.panel,
+.stat-card,
+.mini-chart,
+.summary-wide {
+  border: 1px solid rgba(148, 163, 184, 0.30) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+canvas,
+.chart-panel canvas,
+.summary-wide canvas,
+.mini-chart canvas {
+  background: #111827 !important;
+  border: 1px solid rgba(148, 163, 184, 0.30) !important;
+  box-shadow: none !important;
+}
+
+.drop-zone {
+  background: #111827 !important;
+  background-image: none !important;
+  border-color: rgba(148, 163, 184, 0.42) !important;
+}
+
+.drop-zone:hover,
+.drop-zone.dragover {
+  background: #111827 !important;
+  border-color: var(--blue) !important;
+}
+
+.hero-card,
+.fixed-average {
+  background: #111827 !important;
+  background-image: none !important;
+  border-color: rgba(148, 163, 184, 0.30) !important;
+  box-shadow: none !important;
+}
