@@ -11,15 +11,22 @@ const state = {
 const el = (id) => document.getElementById(id);
 
 const COLORS = {
-  blue: '#2563eb',
-  navy: '#172033',
-  orange: '#f97316',
-  green: '#10b981',
-  purple: '#8b5cf6',
-  amber: '#f59e0b',
-  pink: '#ec4899',
-  muted: '#5f7190',
-  line: '#d8e1f2',
+  ink: '#e5edf7',
+  muted: '#9fb0c7',
+  faint: 'rgba(148, 163, 184, 0.18)',
+  grid: 'rgba(148, 163, 184, 0.16)',
+  chartBgTop: '#101827',
+  chartBgBottom: '#0b1120',
+  plotBg: 'rgba(15, 23, 42, 0.78)',
+  blue: '#38bdf8',
+  cyan: '#22d3ee',
+  navy: '#e5edf7',
+  orange: '#fb923c',
+  green: '#34d399',
+  purple: '#c084fc',
+  amber: '#fbbf24',
+  pink: '#f472b6',
+  red: '#f87171',
 };
 
 function fmtNumber(value, digits = 0) {
@@ -397,38 +404,58 @@ function getTimeRange() {
 
 function clearCanvas(ctx, w, h) {
   ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = '#fff';
+  const bg = ctx.createLinearGradient(0, 0, 0, h);
+  bg.addColorStop(0, COLORS.chartBgTop);
+  bg.addColorStop(1, COLORS.chartBgBottom);
+  ctx.fillStyle = bg;
   ctx.fillRect(0, 0, w, h);
 }
 
-function chartBox(w, h, left = 58, top = 26, right = 24, bottom = 56) {
+
+function chartBox(w, h, left = 72, top = 46, right = 34, bottom = 72) {
   const box = { left, top, right: w - right, bottom: h - bottom };
   box.width = box.right - box.left;
   box.height = box.bottom - box.top;
   return box;
 }
 
+
 function drawNoData(ctx, w, h, text) {
   clearCanvas(ctx, w, h);
   ctx.fillStyle = COLORS.muted;
-  ctx.font = '18px sans-serif';
+  ctx.font = '700 18px "Noto Sans JP", sans-serif';
   ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
   ctx.fillText(text, w / 2, h / 2);
 }
 
+
 function drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep = 4) {
-  ctx.strokeStyle = COLORS.line;
+  ctx.save();
+  ctx.fillStyle = COLORS.plotBg;
+  roundedRect(ctx, box.left, box.top, box.width, box.height, 18);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(226, 232, 240, 0.08)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.strokeStyle = COLORS.grid;
   ctx.lineWidth = 1;
   ctx.fillStyle = COLORS.muted;
-  ctx.font = '14px sans-serif';
+  ctx.font = '700 13px "Noto Sans JP", sans-serif';
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
   for (let i = 0; i <= 5; i++) {
     const v = (yMax / 5) * i;
     const y = box.bottom - (v / yMax) * box.height;
-    ctx.beginPath(); ctx.moveTo(box.left, y); ctx.lineTo(box.right, y); ctx.stroke();
-    ctx.fillText(v.toFixed(yMax <= 6 ? 1 : 0), box.left - 10, y);
+    ctx.beginPath();
+    ctx.moveTo(box.left, y);
+    ctx.lineTo(box.right, y);
+    ctx.stroke();
+    ctx.fillText(v.toFixed(yMax <= 6 ? 1 : 0), box.left - 12, y);
   }
+
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   const startHour = Math.ceil(startMinute / 60);
@@ -437,31 +464,69 @@ function drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep = 4) {
     const m = h * 60;
     if (m < startMinute || m > endMinute) continue;
     const x = box.left + ((m - startMinute) / (endMinute - startMinute)) * box.width;
-    ctx.beginPath(); ctx.moveTo(x, box.top); ctx.lineTo(x, box.bottom); ctx.stroke();
-    ctx.fillText(`${String(h).padStart(2, '0')}:00`, x, box.bottom + 10);
+    ctx.beginPath();
+    ctx.moveTo(x, box.top);
+    ctx.lineTo(x, box.bottom);
+    ctx.stroke();
+    ctx.fillStyle = COLORS.muted;
+    ctx.fillText(`${String(h).padStart(2, '0')}:00`, x, box.bottom + 14);
   }
-}
 
-function drawLineSeries(ctx, series, box, yMax, color, startMinute = 0, endMinute = 1440, valueKey = 'mets', width = 2.4, dashed = false, alpha = 1) {
-  ctx.save();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = width;
-  ctx.globalAlpha = alpha;
-  ctx.setLineDash(dashed ? [7, 5] : []);
+  ctx.strokeStyle = 'rgba(226, 232, 240, 0.34)';
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
-  let started = false;
-  series.forEach((r) => {
-    if (r.minute < startMinute || r.minute > endMinute) return;
-    const v = r[valueKey];
-    if (!Number.isFinite(v) || v <= 0) { started = false; return; }
-    const x = box.left + ((r.minute - startMinute) / (endMinute - startMinute)) * box.width;
-    const y = box.bottom - Math.min(v, yMax) / yMax * box.height;
-    if (!started) { ctx.moveTo(x, y); started = true; }
-    else ctx.lineTo(x, y);
-  });
+  ctx.moveTo(box.left, box.bottom);
+  ctx.lineTo(box.right, box.bottom);
+  ctx.moveTo(box.left, box.top);
+  ctx.lineTo(box.left, box.bottom);
   ctx.stroke();
   ctx.restore();
 }
+
+
+function drawLineSeries(ctx, series, box, yMax, color, startMinute = 0, endMinute = 1440, valueKey = 'mets', width = 2.4, dashed = false, alpha = 1) {
+  const points = [];
+  series.forEach((r) => {
+    if (r.minute < startMinute || r.minute > endMinute) return;
+    const v = r[valueKey];
+    if (!Number.isFinite(v) || v <= 0) {
+      points.push(null);
+      return;
+    }
+    const x = box.left + ((r.minute - startMinute) / (endMinute - startMinute)) * box.width;
+    const y = box.bottom - Math.min(v, yMax) / yMax * box.height;
+    points.push({ x, y });
+  });
+
+  const strokePath = () => {
+    ctx.beginPath();
+    let started = false;
+    points.forEach((pt) => {
+      if (!pt) { started = false; return; }
+      if (!started) { ctx.moveTo(pt.x, pt.y); started = true; }
+      else ctx.lineTo(pt.x, pt.y);
+    });
+    ctx.stroke();
+  };
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.setLineDash(dashed ? [8, 6] : []);
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width + 5;
+  ctx.globalAlpha = alpha * 0.18;
+  strokePath();
+
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  strokePath();
+  ctx.restore();
+}
+
 
 function drawLowReliabilityLine(ctx, rows, box, yMax, cfg, startMinute, endMinute) {
   let segment = [];
@@ -491,55 +556,70 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenc
   const w = canvas.width, h = canvas.height;
   clearCanvas(ctx, w, h);
   if (!rows.length) return drawNoData(ctx, w, h, emptyText);
-  const box = chartBox(w, h, 92, 56, 28, 92);
+
+  const box = chartBox(w, h, 96, 62, 38, 94);
   const values = rows.map((r) => Number.isFinite(r[valueKey]) ? r[valueKey] : 0);
   const maxCandidate = Math.max(...values, Number.isFinite(referenceValue) ? referenceValue : 0);
   const yMax = niceYMax([maxCandidate], 1);
 
-  ctx.strokeStyle = COLORS.line;
+  ctx.save();
+  ctx.fillStyle = COLORS.plotBg;
+  roundedRect(ctx, box.left, box.top, box.width, box.height, 18);
+  ctx.fill();
+
+  ctx.strokeStyle = COLORS.grid;
   ctx.fillStyle = COLORS.muted;
-  ctx.font = '14px sans-serif';
+  ctx.font = '700 14px "Noto Sans JP", sans-serif';
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
   for (let i = 0; i <= 5; i++) {
     const y = box.bottom - (i / 5) * box.height;
     const v = (yMax * i) / 5;
-    ctx.beginPath(); ctx.moveTo(box.left, y); ctx.lineTo(box.right, y); ctx.stroke();
-    ctx.fillText(fmtNumber(v, valueKey === 'exerciseEx' ? 1 : 0), box.left - 12, y);
+    ctx.beginPath();
+    ctx.moveTo(box.left, y);
+    ctx.lineTo(box.right, y);
+    ctx.stroke();
+    ctx.fillText(fmtNumber(v, valueKey === 'exerciseEx' ? 1 : 0), box.left - 14, y);
   }
 
-  ctx.fillStyle = COLORS.navy;
-  ctx.font = '700 15px sans-serif';
+  ctx.fillStyle = COLORS.ink;
+  ctx.font = '900 16px "Noto Sans JP", sans-serif';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
-  ctx.fillText(unit, box.left, box.top - 24);
+  ctx.fillText(unit, box.left, box.top - 26);
 
-  const gap = Math.max(10, Math.min(22, box.width / Math.max(rows.length * 8, 1)));
-  const barW = Math.max(14, (box.width - gap * (rows.length + 1)) / Math.max(rows.length, 1));
+  const gap = Math.max(13, Math.min(26, box.width / Math.max(rows.length * 7, 1)));
+  const barW = Math.max(20, (box.width - gap * (rows.length + 1)) / Math.max(rows.length, 1));
   rows.forEach((r, i) => {
     const v = Number.isFinite(r[valueKey]) ? r[valueKey] : 0;
     const x = box.left + gap + i * (barW + gap);
     const barH = v / yMax * box.height;
     const grad = ctx.createLinearGradient(0, box.bottom - barH, 0, box.bottom);
     grad.addColorStop(0, color);
-    grad.addColorStop(1, 'rgba(37,99,235,0.32)');
-    ctx.fillStyle = grad;
-    roundedRect(ctx, x, box.bottom - barH, barW, barH, 7);
-    ctx.fill();
+    grad.addColorStop(0.58, color);
+    grad.addColorStop(1, 'rgba(15, 23, 42, 0.2)');
 
-    ctx.fillStyle = COLORS.navy;
-    ctx.font = '700 12px sans-serif';
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetY = 7;
+    ctx.fillStyle = grad;
+    roundedRect(ctx, x, box.bottom - barH, barW, barH, 10);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.fillStyle = COLORS.ink;
+    ctx.font = '800 12px "Noto Sans JP", sans-serif';
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
-    if (barW > 24 && barH > 22) {
-      ctx.fillText(fmtNumber(v, valueKey === 'exerciseEx' ? 1 : 0), x + barW / 2, box.bottom - barH - 6);
+    if (barW > 22 && barH > 24) {
+      ctx.fillText(fmtNumber(v, valueKey === 'exerciseEx' ? 1 : 0), x + barW / 2, box.bottom - barH - 8);
     }
 
     ctx.save();
-    ctx.translate(x + barW / 2, box.bottom + 20);
+    ctx.translate(x + barW / 2, box.bottom + 26);
     ctx.rotate(-Math.PI / 6);
     ctx.fillStyle = COLORS.muted;
-    ctx.font = '13px sans-serif';
+    ctx.font = '700 13px "Noto Sans JP", sans-serif';
     ctx.textAlign = 'right';
     ctx.fillText(`${r.date.slice(5)}(${r.weekday || '-'})`, 0, 0);
     ctx.restore();
@@ -548,22 +628,33 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenc
   if (Number.isFinite(referenceValue)) {
     const y = box.bottom - Math.min(referenceValue, yMax) / yMax * box.height;
     ctx.save();
-    ctx.strokeStyle = COLORS.navy;
-    ctx.lineWidth = 2.4;
-    ctx.setLineDash([9, 7]);
+    ctx.strokeStyle = COLORS.amber;
+    ctx.lineWidth = 3;
+    ctx.setLineDash([10, 7]);
+    ctx.shadowColor = COLORS.amber;
+    ctx.shadowBlur = 10;
     ctx.beginPath();
     ctx.moveTo(box.left, y);
     ctx.lineTo(box.right, y);
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = COLORS.navy;
-    ctx.font = '700 13px sans-serif';
+    const label = `${referenceLabel}: ${fmtNumber(referenceValue, valueKey === 'exerciseEx' ? 2 : 0)} ${unit}`;
+    ctx.font = '900 13px "Noto Sans JP", sans-serif';
+    const labelWidth = ctx.measureText(label).width + 20;
+    const labelX = box.right - labelWidth - 10;
+    const labelY = Math.max(box.top + 10, y - 28);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(251, 191, 36, 0.16)';
+    roundedRect(ctx, labelX, labelY, labelWidth, 24, 12);
+    ctx.fill();
+    ctx.fillStyle = COLORS.ink;
     ctx.textAlign = 'left';
-    const labelY = Math.max(box.top + 16, y - 10);
-    ctx.fillText(`${referenceLabel}: ${fmtNumber(referenceValue, valueKey === 'exerciseEx' ? 2 : 0)} ${unit}`, box.left + 8, labelY);
+    ctx.fillText(label, labelX + 10, labelY + 17);
     ctx.restore();
   }
+  ctx.restore();
 }
+
 
 function drawSummaryCharts() {
   const rows = getEligibleSummaryRows();
@@ -593,7 +684,7 @@ function drawDailyTimeseries() {
   const hourStep = spanHours <= 6 ? 1 : spanHours <= 12 ? 2 : 4;
   drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep);
 
-  const palette = [COLORS.orange, COLORS.blue, COLORS.green, COLORS.purple, COLORS.amber, COLORS.pink, COLORS.navy];
+  const palette = [COLORS.orange, COLORS.cyan, COLORS.green, COLORS.purple, COLORS.amber, COLORS.pink, COLORS.blue];
   days.forEach((day, idx) => {
     drawLineSeries(ctx, day.data, box, yMax, palette[idx % palette.length], startMinute, endMinute, 'mets', selected === '__all__' ? 1.8 : 2.8, false, selected === '__all__' ? 0.55 : 1);
   });
@@ -760,8 +851,10 @@ function setupDropZone(zoneId, inputId, handler) {
 setupRangeControls();
 setupDropZone('summaryDrop', 'summaryInput', handleSummaryFile);
 setupDropZone('processedDrop', 'processedInput', handleProcessedFiles);
-el('loadSampleBtn').addEventListener('click', loadSample);
-el('clearBtn').addEventListener('click', clearData);
+const sampleBtn = el('loadSampleBtn');
+if (sampleBtn) sampleBtn.addEventListener('click', loadSample);
+const clearBtn = el('clearBtn');
+if (clearBtn) clearBtn.addEventListener('click', clearData);
 el('daySelect').addEventListener('change', drawDailyTimeseries);
 el('rangeStart').addEventListener('change', drawDailyTimeseries);
 el('rangeEnd').addEventListener('change', drawDailyTimeseries);

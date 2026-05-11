@@ -33,7 +33,7 @@
           <span>1</span>
           <div>
             <h2>データを読み込む</h2>
-            <p>summary CSVを1つ、processed CSVを複数選択します。</p>
+            <p>summary CSVを1つ、processed CSVを複数選択します。ファイルはブラウザ内で処理されます。</p>
           </div>
         </div>
         <div class="drop-grid two">
@@ -51,18 +51,6 @@
           </label>
         </div>
 
-        <div class="button-row">
-          <button id="loadSampleBtn" class="primary">サンプルデータを読み込む</button>
-          <button id="clearBtn">クリア</button>
-        </div>
-        <details class="hint">
-          <summary>対応するCSV形式</summary>
-          <ul>
-            <li>summary: OMRON出力形式、または date, weekday, steps, wear_minutes, exercise_ex などの簡易形式</li>
-            <li>processed: minute, time, METs, flag の4列形式。ヘッダーなしでも可</li>
-            <li>文字コード: UTF-8 / Shift-JIS / CP932 を自動判定します</li>
-          </ul>
-        </details>
       </section>
 
       <section class="dashboard-grid">
