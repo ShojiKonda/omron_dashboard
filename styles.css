@@ -227,3 +227,103 @@ canvas { border-radius: 12px; }
 @media (max-width: 1100px) {
   .summary-chart-grid.stacked { grid-template-columns: 1fr; }
 }
+
+/* v6 dark graphite visual theme */
+:root {
+  --bg: #0b1220;
+  --panel: rgba(17, 24, 39, 0.92);
+  --ink: #e5eefb;
+  --muted: #9fb0c8;
+  --line: rgba(148, 163, 184, 0.22);
+  --blue: #60a5fa;
+  --cyan: #22d3ee;
+  --purple: #a78bfa;
+  --orange: #fb923c;
+  --green: #34d399;
+  --pink: #f472b6;
+  --amber: #fbbf24;
+  --red: #f87171;
+  --navy: #172033;
+  --shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+}
+body {
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 15% -8%, rgba(96, 165, 250, 0.22), transparent 30%),
+    radial-gradient(circle at 92% 2%, rgba(167, 139, 250, 0.18), transparent 28%),
+    linear-gradient(180deg, #0b1220 0%, #111827 44%, #0f172a 100%);
+}
+.hero-card,
+.panel,
+.stat-card,
+.mini-chart {
+  background: linear-gradient(145deg, rgba(17,24,39,0.94), rgba(30,41,59,0.88));
+  border-color: rgba(148,163,184,0.22);
+  box-shadow: var(--shadow);
+}
+.hero-card small,
+.lead,
+.section-title p,
+.drop-zone small,
+.stat-card small,
+.hint,
+.legend,
+.control-row label,
+.card-label,
+footer {
+  color: var(--muted);
+}
+.hero-tags span,
+.pill,
+.section-title span {
+  background: rgba(96,165,250,0.14);
+  color: #bfdbfe;
+}
+.drop-zone {
+  background: linear-gradient(180deg, rgba(15,23,42,0.92), rgba(30,41,59,0.78));
+  border-color: rgba(148,163,184,0.36);
+}
+.drop-zone:hover,
+.drop-zone.dragover {
+  background: rgba(30,64,175,0.20);
+  border-color: var(--blue);
+}
+.drop-zone span { color: #93c5fd; }
+button {
+  background: rgba(15,23,42,0.92);
+  border-color: rgba(148,163,184,0.28);
+  color: var(--ink);
+}
+button.primary {
+  background: linear-gradient(135deg, #2563eb, #9333ea);
+  box-shadow: 0 14px 32px rgba(79, 70, 229, 0.32);
+}
+code {
+  background: rgba(96,165,250,0.14);
+  color: #bfdbfe;
+}
+select {
+  background: rgba(15,23,42,0.96);
+  border-color: rgba(148,163,184,0.34);
+  color: var(--ink);
+}
+canvas {
+  background: #f8fafc;
+  border-color: rgba(148,163,184,0.34);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.20);
+}
+.stat-card.accent {
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+}
+.mini-chart h3,
+h1,
+h2 {
+  color: var(--ink);
+}
+.line.dashed {
+  background: repeating-linear-gradient(to right, #cbd5e1 0 7px, transparent 7px 12px);
+}
+.compact-controls {
+  margin-top: -2px;
+  margin-bottom: 10px;
+}

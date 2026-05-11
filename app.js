@@ -353,9 +353,9 @@ function updateDaySelect() {
   else select.value = '__all__';
 }
 
-function setupRangeControls() {
-  const start = el('rangeStart');
-  const end = el('rangeEnd');
+function fillRangeSelects(startId, endId, defaultStart = 0, defaultEnd = 24) {
+  const start = el(startId);
+  const end = el(endId);
   if (!start || !end || start.options.length) return;
   for (let h = 0; h <= 23; h++) {
     const label = `${String(h).padStart(2, '0')}:00`;
@@ -365,15 +365,21 @@ function setupRangeControls() {
     const label = `${String(h).padStart(2, '0')}:00`;
     end.appendChild(new Option(label, String(h)));
   }
-  start.value = '0';
-  end.value = '24';
+  start.value = String(defaultStart);
+  end.value = String(defaultEnd);
 }
 
-function getTimeRange() {
-  const startHour = Number(el('rangeStart')?.value ?? 0);
-  const endHour = Number(el('rangeEnd')?.value ?? 24);
-  let startMinute = Number.isFinite(startHour) ? startHour * 60 : 0;
-  let endMinute = Number.isFinite(endHour) ? endHour * 60 : 1440;
+function setupRangeControls() {
+  fillRangeSelects('rangeStart', 'rangeEnd', 0, 24);
+  fillRangeSelects('avgRangeStart', 'avgRangeEnd', 0, 24);
+  fillRangeSelects('weekdayRangeStart', 'weekdayRangeEnd', 8, 20);
+}
+
+function getRangeFrom(startId, endId, defaultStart = 0, defaultEnd = 24) {
+  const startHour = Number(el(startId)?.value ?? defaultStart);
+  const endHour = Number(el(endId)?.value ?? defaultEnd);
+  let startMinute = Number.isFinite(startHour) ? startHour * 60 : defaultStart * 60;
+  let endMinute = Number.isFinite(endHour) ? endHour * 60 : defaultEnd * 60;
   if (endMinute <= startMinute) {
     if (startMinute >= 23 * 60) {
       startMinute = 23 * 60;
@@ -383,6 +389,10 @@ function getTimeRange() {
     }
   }
   return { startMinute, endMinute };
+}
+
+function getTimeRange() {
+  return getRangeFrom('rangeStart', 'rangeEnd', 0, 24);
 }
 
 function clearCanvas(ctx, w, h) {
@@ -604,17 +614,21 @@ function drawPersonalAverageComparison() {
   const w = canvas.width, h = canvas.height;
   if (!state.processedDays.length) return drawNoData(ctx, w, h, 'processed CSVを読み込むと、個人平均と全平日平均を比較します。');
   clearCanvas(ctx, w, h);
+  const { startMinute, endMinute } = getRangeFrom('avgRangeStart', 'avgRangeEnd', 0, 24);
   const personal = computePersonalAverage();
   const classAll = state.weekdayAverage.map((r) => ({ minute: r.minute, mets: r.all }));
   const yMax = 6;
   const box = chartBox(w, h, 58, 32, 24, 62);
-  drawTimeGrid(ctx, box, yMax, 0, 1440, 4);
-  drawLineSeries(ctx, classAll, box, yMax, COLORS.navy, 0, 1440, 'mets', 3.0);
-  drawLineSeries(ctx, personal, box, yMax, COLORS.orange, 0, 1440, 'mets', 2.5);
+  const spanHours = (endMinute - startMinute) / 60;
+  const hourStep = spanHours <= 6 ? 1 : spanHours <= 12 ? 2 : 4;
+  drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep);
+  drawLineSeries(ctx, classAll, box, yMax, COLORS.navy, startMinute, endMinute, 'mets', 3.0);
+  drawLineSeries(ctx, personal, box, yMax, COLORS.orange, startMinute, endMinute, 'mets', 2.5);
   ctx.fillStyle = COLORS.navy;
   ctx.font = '700 15px sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('個人平均 vs 全平日平均（0〜6 METs）', box.left, 14);
+  const rangeLabel = `${String(startMinute / 60).padStart(2, '0')}:00〜${String(endMinute / 60).padStart(2, '0')}:00`;
+  ctx.fillText(`個人平均 vs 全平日平均（${rangeLabel}, 0〜6 METs）`, box.left, 14);
 }
 
 function drawWeekdayMeanChart() {
@@ -623,12 +637,13 @@ function drawWeekdayMeanChart() {
   const w = canvas.width, h = canvas.height;
   if (!state.weekdayAverage.length) return drawNoData(ctx, w, h, 'data/weekday_mean.csvを読み込むと、月〜金の平均を表示します。');
   clearCanvas(ctx, w, h);
-  const startMinute = 8 * 60;
-  const endMinute = 20 * 60;
+  const { startMinute, endMinute } = getRangeFrom('weekdayRangeStart', 'weekdayRangeEnd', 8, 20);
   const visible = state.weekdayAverage.filter((r) => r.minute >= startMinute && r.minute <= endMinute);
   const yMax = niceYMax(['Mon','Tue','Wed','Thu','Fri'].flatMap((key) => visible.map((r) => r[key])), 4);
   const box = chartBox(w, h, 58, 32, 24, 62);
-  drawTimeGrid(ctx, box, yMax, startMinute, endMinute, 2);
+  const spanHours = (endMinute - startMinute) / 60;
+  const hourStep = spanHours <= 6 ? 1 : spanHours <= 12 ? 2 : 4;
+  drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep);
   [
     { key: 'Mon', color: COLORS.blue },
     { key: 'Tue', color: COLORS.green },
@@ -642,7 +657,8 @@ function drawWeekdayMeanChart() {
   ctx.fillStyle = COLORS.navy;
   ctx.font = '700 15px sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('月〜金の全員平均METs（8:00〜20:00）', box.left, 14);
+  const rangeLabel = `${String(startMinute / 60).padStart(2, '0')}:00〜${String(endMinute / 60).padStart(2, '0')}:00`;
+  ctx.fillText(`月〜金の全員平均METs（${rangeLabel}）`, box.left, 14);
 }
 
 function roundedRect(ctx, x, y, w, h, r) {
@@ -691,15 +707,6 @@ async function loadDefaultWeekdayAverage() {
     summaryOk = Number.isFinite(state.summaryAverage.aveStep) || Number.isFinite(state.summaryAverage.aveExercise);
   } catch (err) {
     console.warn(err);
-  }
-  const status = el('averageStatus');
-  if (weekdayOk && summaryOk) {
-    status.textContent = '読み込み済み';
-    status.classList.add('ok');
-  } else if (weekdayOk || summaryOk) {
-    status.textContent = '一部読み込み済み';
-  } else {
-    status.textContent = '未読込';
   }
 }
 
@@ -758,5 +765,9 @@ el('clearBtn').addEventListener('click', clearData);
 el('daySelect').addEventListener('change', drawDailyTimeseries);
 el('rangeStart').addEventListener('change', drawDailyTimeseries);
 el('rangeEnd').addEventListener('change', drawDailyTimeseries);
+el('avgRangeStart').addEventListener('change', drawPersonalAverageComparison);
+el('avgRangeEnd').addEventListener('change', drawPersonalAverageComparison);
+el('weekdayRangeStart').addEventListener('change', drawWeekdayMeanChart);
+el('weekdayRangeEnd').addEventListener('change', drawWeekdayMeanChart);
 
 loadDefaultWeekdayAverage().then(updateAll);

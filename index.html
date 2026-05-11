@@ -33,7 +33,7 @@
           <span>1</span>
           <div>
             <h2>データを読み込む</h2>
-            <p>summary CSVを1つ、processed CSVを複数選択します。曜日別平均CSVはGitHub上の <code>data/weekday_mean.csv</code> を自動使用します。</p>
+            <p>summary CSVを1つ、processed CSVを複数選択します。</p>
           </div>
         </div>
         <div class="drop-grid two">
@@ -49,14 +49,6 @@
             <small>例: *_processed_20221021.csv</small>
             <span id="processedFileName">未選択</span>
           </label>
-        </div>
-
-        <div class="fixed-average">
-          <div>
-            <strong>全体平均データ</strong>
-            <p>data/weekday_mean.csv と data/step_ex.csv を自動読み込みします。</p>
-          </div>
-          <span id="averageStatus" class="pill">読み込み中</span>
         </div>
 
         <div class="button-row">
@@ -157,8 +149,16 @@
           <span>4</span>
           <div>
             <h2>個人平均と全体平均の比較</h2>
-            <p>各個人のprocessed CSVから計算した平均パターンと、全平日平均を0時〜24時で比較します。</p>
+            <p>各個人のprocessed CSVから計算した平均パターンと、全平日平均を比較します。横軸の表示範囲を選択できます。</p>
           </div>
+        </div>
+        <div class="control-row compact-controls">
+          <label>横軸開始
+            <select id="avgRangeStart"></select>
+          </label>
+          <label>横軸終了
+            <select id="avgRangeEnd"></select>
+          </label>
         </div>
         <div class="legend">
           <span><i class="line orange"></i>個人平均</span>
@@ -172,8 +172,16 @@
           <span>5</span>
           <div>
             <h2>平日平均METs: 月〜金</h2>
-            <p>月曜〜金曜の全員平均METsを8時〜20時で比較します。</p>
+            <p>月曜〜金曜の全員平均METsを比較します。横軸の表示範囲を選択できます。</p>
           </div>
+        </div>
+        <div class="control-row compact-controls">
+          <label>横軸開始
+            <select id="weekdayRangeStart"></select>
+          </label>
+          <label>横軸終了
+            <select id="weekdayRangeEnd"></select>
+          </label>
         </div>
         <div class="legend">
           <span><i class="line monday"></i>月曜</span>
