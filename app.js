@@ -2,6 +2,10 @@ const state = {
   summaryRows: [],
   processedDays: [],
   weekdayAverage: [],
+  summaryAverage: {
+    aveStep: NaN,
+    aveExercise: NaN,
+  },
 };
 
 const el = (id) => document.getElementById(id);
@@ -221,6 +225,20 @@ function parseWeekdayAverage(text) {
   }).filter((r) => Number.isFinite(r.minute));
 }
 
+
+function parseSummaryAverage(text) {
+  const rows = parseCsv(text);
+  if (!rows.length) return { aveStep: NaN, aveExercise: NaN };
+  const header = rows[0].map((h) => String(h).trim().toLowerCase());
+  const idxStep = header.indexOf('ave_step');
+  const idxExercise = header.indexOf('ave_exercise');
+  const row = rows[1] || [];
+  return {
+    aveStep: parseNumber(row[idxStep]),
+    aveExercise: parseNumber(row[idxExercise]),
+  };
+}
+
 function minuteToTime(minute) {
   const h = Math.floor(minute / 60);
   const m = minute % 60;
@@ -268,7 +286,6 @@ function computePersonalAverage() {
 
 function updateAll() {
   updateCards();
-  updateDailyTable();
   updateDaySelect();
   drawSummaryCharts();
   drawDailyTimeseries();
@@ -284,8 +301,8 @@ function updateCards() {
   const totalSteps = sum(state.summaryRows.map((r) => r.steps));
   el('totalSteps').textContent = totalSteps ? `${fmtNumber(totalSteps)}歩` : '-';
 
-  const wear = mean(state.summaryRows.map((r) => r.wearMinutes));
-  el('avgWear').textContent = Number.isFinite(wear) ? `${fmtNumber(wear)}分` : '-';
+  const eligibleCount = getEligibleSummaryRows().length;
+  el('eligibleDays').textContent = `${eligibleCount}日`;
 
   const mets = mean(state.processedDays.map((d) => d.stats.meanMets));
   el('avgMets').textContent = Number.isFinite(mets) ? fmtNumber(mets, 2) : '-';
@@ -404,7 +421,11 @@ function drawLowReliabilityLine(ctx, rows, box, yMax, cfg, startMinute, endMinut
   flush();
 }
 
-function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText) {
+function getEligibleSummaryRows() {
+  return state.summaryRows.filter((r) => Number.isFinite(r.wearMinutes) && r.wearMinutes >= 180);
+}
+
+function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenceValue = NaN, referenceLabel = '全員平均') {
   const canvas = el(canvasId);
   const ctx = canvas.getContext('2d');
   const w = canvas.width, h = canvas.height;
@@ -412,7 +433,8 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText) {
   if (!rows.length) return drawNoData(ctx, w, h, emptyText);
   const box = chartBox(w, h, 54, 22, 18, 58);
   const values = rows.map((r) => Number.isFinite(r[valueKey]) ? r[valueKey] : 0);
-  const yMax = Math.max(1, Math.ceil(Math.max(...values) * 1.15));
+  const maxCandidate = Math.max(...values, Number.isFinite(referenceValue) ? referenceValue : 0);
+  const yMax = Math.max(1, Math.ceil(maxCandidate * 1.15));
   ctx.strokeStyle = COLORS.line;
   ctx.fillStyle = COLORS.muted;
   ctx.font = '12px sans-serif';
@@ -442,15 +464,34 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText) {
     ctx.fillText(`${r.date.slice(5)}(${r.weekday || '-'})`, 0, 0);
     ctx.restore();
   });
+
+  if (Number.isFinite(referenceValue)) {
+    const y = box.bottom - Math.min(referenceValue, yMax) / yMax * box.height;
+    ctx.save();
+    ctx.strokeStyle = COLORS.navy;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([7, 6]);
+    ctx.beginPath();
+    ctx.moveTo(box.left, y);
+    ctx.lineTo(box.right, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = COLORS.navy;
+    ctx.font = '700 12px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${referenceLabel}: ${fmtNumber(referenceValue, valueKey === 'exerciseEx' ? 2 : 0)} ${unit}`, box.right - 4, y - 8);
+    ctx.restore();
+  }
+
   ctx.fillStyle = COLORS.muted;
   ctx.textAlign = 'left';
   ctx.fillText(unit, box.left, 6);
 }
 
 function drawSummaryCharts() {
-  drawBarChart('summaryWearCanvas', state.summaryRows, 'wearMinutes', COLORS.blue, '分', 'summary CSVを読み込むと装着時間を表示します。');
-  drawBarChart('summaryStepsCanvas', state.summaryRows, 'steps', COLORS.green, '歩', 'summary CSVを読み込むと歩数を表示します。');
-  drawBarChart('summaryExerciseCanvas', state.summaryRows, 'exerciseEx', COLORS.purple, 'Ex', 'summary CSVを読み込むとExを表示します。');
+  const rows = getEligibleSummaryRows();
+  drawBarChart('summaryStepsCanvas', rows, 'steps', COLORS.green, '歩', '装着時間180分以上の日があると歩数を表示します。', state.summaryAverage.aveStep, '全員平均');
+  drawBarChart('summaryExerciseCanvas', rows, 'exerciseEx', COLORS.purple, 'Ex', '装着時間180分以上の日があるとExを表示します。', state.summaryAverage.aveExercise, '全員平均');
 }
 
 function drawDailyTimeseries() {
@@ -461,21 +502,13 @@ function drawDailyTimeseries() {
   if (!day) return drawNoData(ctx, w, h, 'processed CSVを読み込むと、1日のMETs時系列を表示します。');
   clearCanvas(ctx, w, h);
   const box = chartBox(w, h);
-  const yMax = Math.max(5, Math.ceil(Math.max(...day.data.map((r) => r.mets).filter(Number.isFinite), 4)));
+  const yMax = 8;
   drawTimeGrid(ctx, box, yMax, 0, 1440, 4);
-
-  ctx.fillStyle = 'rgba(249,115,22,0.12)';
-  day.data.forEach((r) => {
-    if (r.mets >= 3) {
-      const x = box.left + (r.minute / 1440) * box.width;
-      ctx.fillRect(x, box.top, Math.max(1, box.width / 1440), box.height);
-    }
-  });
   drawLineSeries(ctx, day.data, box, yMax, COLORS.orange, 0, 1440, 'mets', 2.4);
   ctx.fillStyle = COLORS.navy;
   ctx.font = '700 15px sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText(`${day.date} (${day.weekday || '-'}) のMETs時系列`, box.left, 8);
+  ctx.fillText(`${day.date} (${day.weekday || '-'}) のMETs時系列（0〜8 METs）`, box.left, 8);
 }
 
 function drawPersonalAverageComparison() {
@@ -562,13 +595,28 @@ async function handleProcessedFiles(files) {
 }
 
 async function loadDefaultWeekdayAverage() {
+  let weekdayOk = false;
+  let summaryOk = false;
   try {
     state.weekdayAverage = parseWeekdayAverage(await fetchText('data/weekday_mean.csv'));
-    el('averageStatus').textContent = '読み込み済み';
-    el('averageStatus').classList.add('ok');
+    weekdayOk = true;
   } catch (err) {
     console.warn(err);
-    el('averageStatus').textContent = '未読込';
+  }
+  try {
+    state.summaryAverage = parseSummaryAverage(await fetchText('data/step_ex.csv'));
+    summaryOk = Number.isFinite(state.summaryAverage.aveStep) || Number.isFinite(state.summaryAverage.aveExercise);
+  } catch (err) {
+    console.warn(err);
+  }
+  const status = el('averageStatus');
+  if (weekdayOk && summaryOk) {
+    status.textContent = '読み込み済み';
+    status.classList.add('ok');
+  } else if (weekdayOk || summaryOk) {
+    status.textContent = '一部読み込み済み';
+  } else {
+    status.textContent = '未読込';
   }
 }
 

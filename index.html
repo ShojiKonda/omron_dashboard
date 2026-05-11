@@ -12,7 +12,7 @@
         <p class="eyebrow">OMRON Classroom Data Lab</p>
         <h1>Activity Rhythm Dashboard</h1>
         <p class="lead">
-          OMRON活動量計のsummary CSVとprocessed CSVを読み込み、装着時間、歩数、エクササイズ量、1日のMETs時系列、個人平均と全体平均の違いを可視化します。
+          OMRON活動量計のsummary CSVとprocessed CSVを読み込み、歩数、エクササイズ量、1日のMETs時系列、個人平均と全体平均の違いを可視化します。
         </p>
         <div class="hero-tags">
           <span>Browser only</span>
@@ -54,7 +54,7 @@
         <div class="fixed-average">
           <div>
             <strong>全体平均データ</strong>
-            <p>data/weekday_mean.csv を自動読み込みします。</p>
+            <p>data/weekday_mean.csv と data/step_ex.csv を自動読み込みします。</p>
           </div>
           <span id="averageStatus" class="pill">読み込み中</span>
         </div>
@@ -85,9 +85,9 @@
           <small>summaryから算出</small>
         </article>
         <article class="stat-card">
-          <span class="card-label">平均装着時間</span>
-          <strong id="avgWear">-</strong>
-          <small>日別平均</small>
+          <span class="card-label">可視化対象日数</span>
+          <strong id="eligibleDays">0日</strong>
+          <small>装着時間180分以上</small>
         </article>
         <article class="stat-card">
           <span class="card-label">平均METs</span>
@@ -101,45 +101,20 @@
         </article>
       </section>
 
-      <section class="panel" id="daily-summary">
+      <section class="panel" id="summary-charts">
         <div class="section-title">
           <span>2</span>
           <div>
-            <h2>装着状況と日別サマリー</h2>
-            <p>各日の装着時間、歩数、エクササイズ量を一覧で確認します。</p>
-          </div>
-        </div>
-        <div class="table-wrap">
-          <table class="daily-table">
-            <thead>
-              <tr>
-                <th>日付</th>
-                <th>曜日</th>
-                <th>装着時間</th>
-                <th>歩数</th>
-                <th>エクササイズ合計</th>
-              </tr>
-            </thead>
-            <tbody id="dailyTableBody">
-              <tr><td colspan="5" class="empty-cell">CSVを読み込むと、日別サマリーを表示します。</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="panel" id="summary-charts">
-        <div class="section-title">
-          <span>3</span>
-          <div>
             <h2>サマリーデータの可視化</h2>
-            <p>装着時間、歩数、エクササイズ合計を日別棒グラフで確認します。</p>
+            <p>装着時間が180分以上の日だけを対象に、歩数とエクササイズ合計を日別棒グラフで確認します。点線は全員平均です。</p>
           </div>
         </div>
-        <div class="summary-chart-grid">
-          <article class="mini-chart">
-            <h3>装着時間</h3>
-            <canvas id="summaryWearCanvas" width="720" height="360" aria-label="wear time chart"></canvas>
-          </article>
+        <div class="legend summary-legend">
+          <span><i class="line green"></i>歩数: 個人データ</span>
+          <span><i class="line purple"></i>Ex: 個人データ</span>
+          <span><i class="line dashed"></i>全員平均</span>
+        </div>
+        <div class="summary-chart-grid two">
           <article class="mini-chart">
             <h3>歩数</h3>
             <canvas id="summaryStepsCanvas" width="720" height="360" aria-label="steps chart"></canvas>
@@ -153,7 +128,7 @@
 
       <section class="panel chart-panel" id="daily-timeseries">
         <div class="section-title">
-          <span>4</span>
+          <span>3</span>
           <div>
             <h2>各個人の各日の時系列データ</h2>
             <p>processed CSVから、選択した1日のMETs時系列を0時〜24時で表示します。</p>
@@ -166,14 +141,14 @@
         </div>
         <div class="legend">
           <span><i class="line orange"></i>個人データ</span>
-          <span><i class="zone"></i>3 METs以上</span>
+          <span>縦軸: 0〜8 METs</span>
         </div>
         <canvas id="dailyTimeseriesCanvas" width="1180" height="460" aria-label="daily METs time series"></canvas>
       </section>
 
       <section class="panel chart-panel" id="personal-average">
         <div class="section-title">
-          <span>5</span>
+          <span>4</span>
           <div>
             <h2>個人平均と全体平均の比較</h2>
             <p>各個人のprocessed CSVから計算した平均パターンと、全平日平均を0時〜24時で比較します。</p>
@@ -188,7 +163,7 @@
 
       <section class="panel chart-panel" id="weekday-average">
         <div class="section-title">
-          <span>6</span>
+          <span>5</span>
           <div>
             <h2>平日平均METs: 月〜金</h2>
             <p>月曜〜金曜の全員平均METsを8時〜20時で比較します。点線はデータ数が少ない区間です。</p>
