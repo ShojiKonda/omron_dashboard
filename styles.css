@@ -456,3 +456,65 @@ canvas,
   border-color: rgba(148, 163, 184, 0.30) !important;
   box-shadow: none !important;
 }
+
+
+/* v10: keep only the outer section border. Remove nested chart/card/canvas frames. */
+:root {
+  --surface: #111827;
+  --outer-border: rgba(148, 163, 184, 0.34);
+  --soft-border: transparent;
+}
+
+body,
+.hero,
+.layout,
+.panel,
+.chart-panel.panel,
+.mini-chart,
+.summary-wide,
+canvas,
+.chart-panel canvas,
+.summary-wide canvas,
+.mini-chart canvas {
+  background: var(--surface) !important;
+  background-image: none !important;
+}
+
+/* One visible frame per major section only */
+.panel,
+.chart-panel.panel {
+  border: 1px solid var(--outer-border) !important;
+  box-shadow: none !important;
+}
+
+/* No nested frames inside each section */
+.mini-chart,
+.summary-wide,
+canvas,
+.chart-panel canvas,
+.summary-wide canvas,
+.mini-chart canvas {
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.mini-chart,
+.summary-wide {
+  padding: 10px 0 0 !important;
+}
+
+.summary-wide canvas,
+.chart-panel canvas {
+  border-radius: 0 !important;
+}
+
+/* Keep file input boxes visible, but avoid extra visual weight elsewhere */
+.drop-zone {
+  border-color: rgba(148, 163, 184, 0.38) !important;
+}
+
+/* Top numeric cards remain separate summary cards */
+.stat-card {
+  border-color: rgba(148, 163, 184, 0.24) !important;
+}

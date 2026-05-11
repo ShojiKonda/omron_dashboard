@@ -429,14 +429,6 @@ function drawNoData(ctx, w, h, text) {
 
 function drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep = 4) {
   ctx.save();
-  ctx.fillStyle = COLORS.plotBg;
-  roundedRect(ctx, box.left, box.top, box.width, box.height, 18);
-  ctx.fill();
-
-  ctx.strokeStyle = COLORS.faint;
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
   ctx.strokeStyle = COLORS.grid;
   ctx.lineWidth = 1;
   ctx.fillStyle = COLORS.muted;
@@ -560,10 +552,6 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenc
   const yMax = niceYMax([maxCandidate], 1);
 
   ctx.save();
-  ctx.fillStyle = COLORS.plotBg;
-  roundedRect(ctx, box.left, box.top, box.width, box.height, 18);
-  ctx.fill();
-
   ctx.strokeStyle = COLORS.grid;
   ctx.fillStyle = COLORS.muted;
   ctx.font = '700 14px "Noto Sans JP", sans-serif';
@@ -595,9 +583,6 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenc
     ctx.fillStyle = color;
     roundedRect(ctx, x, box.bottom - barH, barW, barH, 8);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(232, 238, 247, 0.28)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
     ctx.restore();
 
     ctx.fillStyle = COLORS.ink;
