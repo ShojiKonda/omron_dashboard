@@ -65,6 +65,20 @@ function getWeekday(dateStr) {
   return names[d.getDay()];
 }
 
+function weekdayColor(weekday, fallbackIndex = 0) {
+  const map = {
+    '月': COLORS.blue,
+    '火': COLORS.green,
+    '水': COLORS.purple,
+    '木': COLORS.amber,
+    '金': COLORS.pink,
+    '土': COLORS.cyan,
+    '日': COLORS.red,
+  };
+  const fallback = [COLORS.blue, COLORS.green, COLORS.purple, COLORS.amber, COLORS.pink, COLORS.cyan, COLORS.red];
+  return map[weekday] || fallback[fallbackIndex % fallback.length];
+}
+
 function splitCsvLine(line) {
   const cells = [];
   let current = '';
@@ -409,7 +423,7 @@ function clearCanvas(ctx, w, h) {
 }
 
 
-function chartBox(w, h, left = 72, top = 46, right = 34, bottom = 72) {
+function chartBox(w, h, left = 86, top = 56, right = 40, bottom = 86) {
   const box = { left, top, right: w - right, bottom: h - bottom };
   box.width = box.right - box.left;
   box.height = box.bottom - box.top;
@@ -420,7 +434,7 @@ function chartBox(w, h, left = 72, top = 46, right = 34, bottom = 72) {
 function drawNoData(ctx, w, h, text) {
   clearCanvas(ctx, w, h);
   ctx.fillStyle = COLORS.muted;
-  ctx.font = '700 18px "Noto Sans JP", sans-serif';
+  ctx.font = '700 22px "Noto Sans JP", sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text, w / 2, h / 2);
@@ -432,7 +446,7 @@ function drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep = 4) {
   ctx.strokeStyle = COLORS.grid;
   ctx.lineWidth = 1;
   ctx.fillStyle = COLORS.muted;
-  ctx.font = '700 13px "Noto Sans JP", sans-serif';
+  ctx.font = '700 16px "Noto Sans JP", sans-serif';
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
   for (let i = 0; i <= 5; i++) {
@@ -546,7 +560,7 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenc
   clearCanvas(ctx, w, h);
   if (!rows.length) return drawNoData(ctx, w, h, emptyText);
 
-  const box = chartBox(w, h, 96, 62, 38, 94);
+  const box = chartBox(w, h, 112, 74, 42, 106);
   const values = rows.map((r) => Number.isFinite(r[valueKey]) ? r[valueKey] : 0);
   const maxCandidate = Math.max(...values, Number.isFinite(referenceValue) ? referenceValue : 0);
   const yMax = niceYMax([maxCandidate], 1);
@@ -554,7 +568,7 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenc
   ctx.save();
   ctx.strokeStyle = COLORS.grid;
   ctx.fillStyle = COLORS.muted;
-  ctx.font = '700 14px "Noto Sans JP", sans-serif';
+  ctx.font = '700 16px "Noto Sans JP", sans-serif';
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
   for (let i = 0; i <= 5; i++) {
@@ -568,7 +582,7 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenc
   }
 
   ctx.fillStyle = COLORS.ink;
-  ctx.font = '900 16px "Noto Sans JP", sans-serif';
+  ctx.font = '900 19px "Noto Sans JP", sans-serif';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
   ctx.fillText(unit, box.left, box.top - 26);
@@ -586,7 +600,7 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenc
     ctx.restore();
 
     ctx.fillStyle = COLORS.ink;
-    ctx.font = '800 12px "Noto Sans JP", sans-serif';
+    ctx.font = '800 14px "Noto Sans JP", sans-serif';
     ctx.textAlign = 'center';
     if (barW > 22 && barH > 24) {
       ctx.fillText(fmtNumber(v, valueKey === 'exerciseEx' ? 1 : 0), x + barW / 2, box.bottom - barH - 8);
@@ -596,7 +610,7 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenc
     ctx.translate(x + barW / 2, box.bottom + 26);
     ctx.rotate(-Math.PI / 6);
     ctx.fillStyle = COLORS.muted;
-    ctx.font = '700 13px "Noto Sans JP", sans-serif';
+    ctx.font = '700 16px "Noto Sans JP", sans-serif';
     ctx.textAlign = 'right';
     ctx.fillText(`${r.date.slice(5)}(${r.weekday || '-'})`, 0, 0);
     ctx.restore();
@@ -614,17 +628,17 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenc
     ctx.stroke();
     ctx.setLineDash([]);
     const label = `${referenceLabel}: ${fmtNumber(referenceValue, valueKey === 'exerciseEx' ? 2 : 0)} ${unit}`;
-    ctx.font = '900 13px "Noto Sans JP", sans-serif';
-    const labelWidth = ctx.measureText(label).width + 20;
+    ctx.font = '900 15px "Noto Sans JP", sans-serif';
+    const labelWidth = ctx.measureText(label).width + 24;
     const labelX = box.right - labelWidth - 10;
-    const labelY = Math.max(box.top + 10, y - 28);
+    const labelY = Math.max(box.top + 12, y - 32);
     ctx.shadowBlur = 0;
     ctx.fillStyle = 'rgba(250, 204, 21, 0.12)';
-    roundedRect(ctx, labelX, labelY, labelWidth, 24, 12);
+    roundedRect(ctx, labelX, labelY, labelWidth, 30, 14);
     ctx.fill();
     ctx.fillStyle = COLORS.ink;
     ctx.textAlign = 'left';
-    ctx.fillText(label, labelX + 10, labelY + 17);
+    ctx.fillText(label, labelX + 12, labelY + 21);
     ctx.restore();
   }
   ctx.restore();
@@ -659,19 +673,21 @@ function drawDailyTimeseries() {
   const hourStep = spanHours <= 6 ? 1 : spanHours <= 12 ? 2 : 4;
   drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep);
 
-  const palette = [COLORS.orange, COLORS.cyan, COLORS.green, COLORS.purple, COLORS.amber, COLORS.pink, COLORS.blue];
   days.forEach((day, idx) => {
-    drawLineSeries(ctx, day.data, box, yMax, palette[idx % palette.length], startMinute, endMinute, 'mets', selected === '__all__' ? 1.8 : 2.8, false, selected === '__all__' ? 0.55 : 1);
+    const color = selected === '__all__' ? weekdayColor(day.weekday, idx) : COLORS.orange;
+    const width = selected === '__all__' ? 2.6 : 3.0;
+    const alpha = selected === '__all__' ? 0.92 : 1;
+    drawLineSeries(ctx, day.data, box, yMax, color, startMinute, endMinute, 'mets', width, false, alpha);
   });
 
   ctx.fillStyle = COLORS.navy;
-  ctx.font = '700 15px sans-serif';
+  ctx.font = '800 19px "Noto Sans JP", sans-serif';
   ctx.textAlign = 'left';
   const rangeLabel = `${String(startMinute / 60).padStart(2, '0')}:00〜${String(endMinute / 60).padStart(2, '0')}:00`;
   const title = selected === '__all__'
     ? `全日のMETs時系列 (${rangeLabel})`
     : `${days[0]?.date || ''} (${days[0]?.weekday || '-'}) のMETs時系列 (${rangeLabel})`;
-  ctx.fillText(title, box.left, 14);
+  ctx.fillText(title, box.left, 24);
 }
 
 function drawPersonalAverageComparison() {
@@ -688,13 +704,13 @@ function drawPersonalAverageComparison() {
   const spanHours = (endMinute - startMinute) / 60;
   const hourStep = spanHours <= 6 ? 1 : spanHours <= 12 ? 2 : 4;
   drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep);
-  drawLineSeries(ctx, classAll, box, yMax, COLORS.navy, startMinute, endMinute, 'mets', 3.0);
-  drawLineSeries(ctx, personal, box, yMax, COLORS.orange, startMinute, endMinute, 'mets', 2.5);
+  drawLineSeries(ctx, personal, box, yMax, COLORS.orange, startMinute, endMinute, 'mets', 2.8, false, 1);
+  drawLineSeries(ctx, classAll, box, yMax, COLORS.navy, startMinute, endMinute, 'mets', 5.2, false, 0.74);
   ctx.fillStyle = COLORS.navy;
-  ctx.font = '700 15px sans-serif';
+  ctx.font = '800 19px "Noto Sans JP", sans-serif';
   ctx.textAlign = 'left';
   const rangeLabel = `${String(startMinute / 60).padStart(2, '0')}:00〜${String(endMinute / 60).padStart(2, '0')}:00`;
-  ctx.fillText(`個人平均 vs 全平日平均（${rangeLabel}, 0〜6 METs）`, box.left, 14);
+  ctx.fillText(`個人平均 vs 全平日平均（${rangeLabel}, 0〜6 METs）`, box.left, 24);
 }
 
 function drawWeekdayMeanChart() {
@@ -718,13 +734,13 @@ function drawWeekdayMeanChart() {
     { key: 'Fri', color: COLORS.pink },
   ].forEach((cfg) => {
     const series = state.weekdayAverage.map((r) => ({ minute: r.minute, mets: r[cfg.key] }));
-    drawLineSeries(ctx, series, box, yMax, cfg.color, startMinute, endMinute, 'mets', 2.4, false, 1);
+    drawLineSeries(ctx, series, box, yMax, cfg.color, startMinute, endMinute, 'mets', 2.8, false, 1);
   });
   ctx.fillStyle = COLORS.navy;
-  ctx.font = '700 15px sans-serif';
+  ctx.font = '800 19px "Noto Sans JP", sans-serif';
   ctx.textAlign = 'left';
   const rangeLabel = `${String(startMinute / 60).padStart(2, '0')}:00〜${String(endMinute / 60).padStart(2, '0')}:00`;
-  ctx.fillText(`月〜金の全員平均METs（${rangeLabel}）`, box.left, 14);
+  ctx.fillText(`月〜金の全員平均METs（${rangeLabel}）`, box.left, 24);
 }
 
 function roundedRect(ctx, x, y, w, h, r) {
