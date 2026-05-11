@@ -46,9 +46,9 @@
           </label>
           <label class="drop-zone optional" id="classDrop">
             <input id="classAverageInput" type="file" accept=".csv,text/csv" />
-            <strong>全体平均 CSV 任意</strong>
-            <small>minute,time,class_mean_mets,class_sd_mets,n</small>
-            <span id="classFileName">サンプル平均を使用</span>
+            <strong>曜日別平均 CSV 任意</strong>
+            <small>既定値: data/weekday_mean.csv</small>
+            <span id="classFileName">data/weekday_mean.csv を使用</span>
           </label>
         </div>
         <div class="button-row">
@@ -103,26 +103,21 @@
         <div class="section-title compact-title">
           <span>3</span>
           <div>
-            <h2>METs時系列: 自分 vs 全体平均</h2>
-            <p>授業時間帯、平均±標準偏差、高活動区間を重ねて確認します。</p>
+            <h2>平日平均METs: 全平日・月〜金</h2>
+            <p>8時〜20時の平均METsを1つのグラフに重ねて表示します。点線はデータ数が少なく、平均値の信頼度が低い区間です。</p>
           </div>
         </div>
-        <div class="control-row">
-          <label>表示対象
-            <select id="daySelect"></select>
-          </label>
-          <label>講義時間
-            <input id="lectureBlocks" value="08:50-10:20,10:30-12:00,13:30-15:00,15:10-16:40,16:50-18:20" />
-          </label>
-          <button id="redrawBtn">再描画</button>
-        </div>
         <div class="legend">
-          <span><i class="line orange"></i>あなた</span>
-          <span><i class="line blue"></i>全体平均</span>
-          <span><i class="band"></i>全体平均±SD</span>
-          <span><i class="lecture"></i>講義時間</span>
+          <span><i class="line navy"></i>全平日</span>
+          <span><i class="line monday"></i>月曜</span>
+          <span><i class="line tuesday"></i>火曜</span>
+          <span><i class="line wednesday"></i>水曜</span>
+          <span><i class="line thursday"></i>木曜</span>
+          <span><i class="line friday"></i>金曜</span>
+          <span><i class="line dashed"></i>点線: 低信頼</span>
         </div>
-        <canvas id="timeseriesCanvas" width="1180" height="460" aria-label="METs time-series chart"></canvas>
+        <p id="meanReliabilityNote" class="chart-note">低信頼の判定: 曜日別は n &lt; 3、全平日は n &lt; 10 として表示します。</p>
+        <canvas id="timeseriesCanvas" width="1180" height="460" aria-label="weekday mean METs chart"></canvas>
       </section>
 
       <section class="split">

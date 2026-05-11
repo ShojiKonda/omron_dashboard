@@ -1,7 +1,7 @@
 const state = {
   summaryRows: [],
   processedDays: [],
-  classAverage: [],
+  weekdayAverage: [],
 };
 
 const el = (id) => document.getElementById(id);
@@ -208,6 +208,60 @@ function parseClassAverage(text) {
   })).filter((r) => Number.isFinite(r.minute));
 }
 
+function parseWeekdayAverage(text) {
+  const rows = parseCsv(text);
+  if (!rows.length) return [];
+  const header = rows[0];
+  const lower = header.map((h) => String(h).trim().toLowerCase());
+  const hasHeader = lower.includes('all') || lower.includes('mon') || header.includes('日付');
+  const body = hasHeader ? rows.slice(1) : rows;
+  const indexOf = (...candidates) => {
+    for (const c of candidates) {
+      const idx = lower.indexOf(String(c).toLowerCase());
+      if (idx >= 0) return idx;
+    }
+    return -1;
+  };
+  const timeIdx = indexOf('日付', 'time');
+  const idx = {
+    all: indexOf('all'),
+    Mon: indexOf('Mon'),
+    Tue: indexOf('Tue'),
+    Wed: indexOf('Wed'),
+    Thu: indexOf('Thu'),
+    Fri: indexOf('Fri'),
+    Num_Mon: indexOf('Num_Mon'),
+    Num_Tue: indexOf('Num_Tue'),
+    Num_Wed: indexOf('Num_Wed'),
+    Num_Thu: indexOf('Num_Thu'),
+    Num_Fri: indexOf('Num_Fri'),
+  };
+  return body.map((r, i) => {
+    const minute = Number.isFinite(timeToMinute(r[timeIdx])) ? timeToMinute(r[timeIdx]) : i;
+    const numMon = parseNumber(r[idx.Num_Mon]);
+    const numTue = parseNumber(r[idx.Num_Tue]);
+    const numWed = parseNumber(r[idx.Num_Wed]);
+    const numThu = parseNumber(r[idx.Num_Thu]);
+    const numFri = parseNumber(r[idx.Num_Fri]);
+    return {
+      minute,
+      time: r[timeIdx] || minuteToTime(minute),
+      all: parseNumber(r[idx.all]),
+      Mon: parseNumber(r[idx.Mon]),
+      Tue: parseNumber(r[idx.Tue]),
+      Wed: parseNumber(r[idx.Wed]),
+      Thu: parseNumber(r[idx.Thu]),
+      Fri: parseNumber(r[idx.Fri]),
+      Num_Mon: numMon,
+      Num_Tue: numTue,
+      Num_Wed: numWed,
+      Num_Thu: numThu,
+      Num_Fri: numFri,
+      Num_All: [numMon, numTue, numWed, numThu, numFri].filter(Number.isFinite).reduce((a,b) => a + b, 0),
+    };
+  }).filter((r) => Number.isFinite(r.minute));
+}
+
 function minuteToTime(minute) {
   const h = Math.floor(minute / 60);
   const m = minute % 60;
@@ -265,9 +319,8 @@ function mean(values) {
 
 function updateAll() {
   updateCards();
-  updateDaySelect();
   updateQualityList();
-  drawTimeseries();
+  drawMeanTrendChart();
   drawWeekdayChart();
   drawHeatmap();
   updateInsights();
@@ -285,18 +338,7 @@ function updateCards() {
   el('avgMets').textContent = Number.isFinite(mets) ? fmtNumber(mets, 2) : '-';
 }
 
-function updateDaySelect() {
-  const select = el('daySelect');
-  const old = select.value;
-  select.innerHTML = '';
-  const avg = new Option('あなたの平均', 'average');
-  select.appendChild(avg);
-  state.processedDays.forEach((day) => {
-    const option = new Option(`${day.date} (${day.weekday || '-'})`, day.id);
-    select.appendChild(option);
-  });
-  select.value = [...select.options].some((o) => o.value === old) ? old : 'average';
-}
+function updateDaySelect() {}
 
 function updateQualityList() {
   const box = el('qualityList');
@@ -412,7 +454,98 @@ function drawLectureBlocks(ctx, box, blocks) {
   });
 }
 
-function drawTimeseries() {
+
+function drawRangeGrid(ctx, box, yMax, startMinute, endMinute, yTicks = 5, xStepMinutes = 120) {
+  ctx.strokeStyle = '#d9dee9';
+  ctx.lineWidth = 1;
+  ctx.fillStyle = '#667085';
+  ctx.font = '13px sans-serif';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i <= yTicks; i++) {
+    const v = (yMax / yTicks) * i;
+    const y = box.bottom - (v / yMax) * box.height;
+    ctx.beginPath();
+    ctx.moveTo(box.left, y);
+    ctx.lineTo(box.right, y);
+    ctx.stroke();
+    ctx.fillText(v.toFixed(1), box.left - 10, y);
+  }
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  for (let m = startMinute; m <= endMinute; m += xStepMinutes) {
+    const x = box.left + ((m - startMinute) / (endMinute - startMinute)) * box.width;
+    ctx.beginPath();
+    ctx.moveTo(x, box.top);
+    ctx.lineTo(x, box.bottom);
+    ctx.stroke();
+    ctx.fillText(`${String(Math.floor(m / 60)).padStart(2, '0')}:00`, x, box.bottom + 10);
+  }
+}
+
+function drawReliabilityLine(ctx, rows, box, yMax, config, startMinute, endMinute) {
+  const filtered = rows.filter((r) => r.minute >= startMinute && r.minute <= endMinute);
+  const xOf = (minute) => box.left + ((minute - startMinute) / (endMinute - startMinute)) * box.width;
+  const yOf = (value) => box.bottom - Math.min(value, yMax) / yMax * box.height;
+  const threshold = config.lowThreshold;
+  const valueKey = config.valueKey;
+  const countKey = config.countKey;
+
+  const drawSegment = (segmentRows, dashed) => {
+    if (!segmentRows.length) return;
+    ctx.save();
+    ctx.strokeStyle = config.color;
+    ctx.globalAlpha = dashed ? 0.45 : 1;
+    ctx.lineWidth = config.width || 2.2;
+    ctx.setLineDash(dashed ? [7, 5] : []);
+    ctx.beginPath();
+    segmentRows.forEach((r, idx) => {
+      const x = xOf(r.minute);
+      const y = yOf(r[valueKey]);
+      if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.restore();
+  };
+
+  let current = [];
+  let currentDashed = null;
+  filtered.forEach((r) => {
+    const v = r[valueKey];
+    const c = r[countKey];
+    const dashed = Number.isFinite(c) ? c < threshold : true;
+    if (!Number.isFinite(v) || v <= 0) {
+      drawSegment(current, currentDashed);
+      current = [];
+      currentDashed = null;
+      return;
+    }
+    if (currentDashed === null) {
+      currentDashed = dashed;
+      current = [r];
+      return;
+    }
+    if (dashed !== currentDashed) {
+      drawSegment(current, currentDashed);
+      current = [filtered[Math.max(0, filtered.indexOf(r) - 1)], r].filter(Boolean);
+      currentDashed = dashed;
+      return;
+    }
+    current.push(r);
+  });
+  drawSegment(current, currentDashed);
+}
+
+function countStats(rows, key) {
+  const values = rows.map((r) => r[key]).filter((v) => Number.isFinite(v));
+  if (!values.length) return null;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const avg = values.reduce((a, b) => a + b, 0) / values.length;
+  return { min, max, avg };
+}
+
+function drawMeanTrendChart() {
   const canvas = el('timeseriesCanvas');
   const ctx = canvas.getContext('2d');
   const w = canvas.width;
@@ -421,32 +554,44 @@ function drawTimeseries() {
   const box = { left: 58, top: 28, right: w - 24, bottom: h - 58 };
   box.width = box.right - box.left;
   box.height = box.bottom - box.top;
-  if (!state.processedDays.length) {
+  if (!state.weekdayAverage.length) {
     ctx.fillStyle = '#667085';
     ctx.font = '20px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('データを読み込むと、METs時系列を表示します。', w / 2, h / 2);
+    ctx.fillText('平均CSVを読み込むと、平日平均METsを表示します。', w / 2, h / 2);
     return;
   }
+  const startMinute = 8 * 60;
+  const endMinute = 20 * 60;
+  const visible = state.weekdayAverage.filter((r) => r.minute >= startMinute && r.minute <= endMinute);
+  const seriesMax = ['all', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+    .flatMap((key) => visible.map((r) => r[key]))
+    .filter((v) => Number.isFinite(v));
+  const yMax = Math.max(4, Math.ceil((Math.max(...seriesMax, 3) + 0.3) * 2) / 2);
+  drawRangeGrid(ctx, box, yMax, startMinute, endMinute, 5, 120);
 
-  const selectValue = el('daySelect').value || 'average';
-  const personal = selectValue === 'average'
-    ? computePersonalAverage().map((r) => ({ minute: r.minute, time: r.time, mets: r.mets }))
-    : (state.processedDays.find((d) => d.id === selectValue)?.data || []);
-  const classAvg = state.classAverage;
-  const yCandidates = [5, ...personal.map((r) => r.mets).filter(Number.isFinite), ...classAvg.map((r) => (r.mean || 0) + (r.sd || 0)).filter(Number.isFinite)];
-  const yMax = Math.min(12, Math.max(5, Math.ceil(Math.max(...yCandidates))));
-  drawLectureBlocks(ctx, box, parseLectureBlocks(el('lectureBlocks').value));
-  drawGrid(ctx, box, yMax, 5);
-  drawSdBand(ctx, classAvg, box, yMax);
-  drawLine(ctx, classAvg, box, yMax, '#2f69d9', 2);
-  drawLine(ctx, personal, box, yMax, '#ff7a2f', 2.2);
+  const configs = [
+    { valueKey: 'all', countKey: 'Num_All', lowThreshold: 10, color: '#172033', width: 3.2 },
+    { valueKey: 'Mon', countKey: 'Num_Mon', lowThreshold: 3, color: '#2f69d9' },
+    { valueKey: 'Tue', countKey: 'Num_Tue', lowThreshold: 3, color: '#10b981' },
+    { valueKey: 'Wed', countKey: 'Num_Wed', lowThreshold: 3, color: '#8b5cf6' },
+    { valueKey: 'Thu', countKey: 'Num_Thu', lowThreshold: 3, color: '#f59e0b' },
+    { valueKey: 'Fri', countKey: 'Num_Fri', lowThreshold: 3, color: '#ef4444' },
+  ];
+  configs.forEach((cfg) => drawReliabilityLine(ctx, state.weekdayAverage, box, yMax, cfg, startMinute, endMinute));
+
   ctx.fillStyle = '#172033';
   ctx.font = '700 15px sans-serif';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  const label = selectValue === 'average' ? 'あなたの平均' : `あなた: ${selectValue}`;
-  ctx.fillText(`${label}  /  全体平均との比較`, box.left, 6);
+  ctx.fillText('8:00〜20:00 の平均METs', box.left, 6);
+
+  const note = el('meanReliabilityNote');
+  if (note) {
+    const fri = countStats(visible, 'Num_Fri');
+    const all = countStats(visible, 'Num_All');
+    note.textContent = `点線は低信頼区間です。曜日別は n<3、全平日は n<10。全平日nの範囲: ${all ? `${fmtNumber(all.min)}〜${fmtNumber(all.max)}` : '-'}、金曜nの範囲: ${fri ? `${fmtNumber(fri.min)}〜${fmtNumber(fri.max)}` : '-'}。`;
+  }
 }
 
 function drawWeekdayChart() {
@@ -590,6 +735,7 @@ function roundedRect(ctx, x, y, w, h, r) {
   ctx.quadraticCurveTo(x, y, x + rr, y);
 }
 
+
 function updateInsights() {
   const box = el('insights');
   if (!state.processedDays.length) {
@@ -599,28 +745,26 @@ function updateInsights() {
   }
   const allValid = state.processedDays.flatMap((day) => day.data.filter((r) => r.mets > 0).map((r) => ({ ...r, date: day.date })));
   const peak = allValid.reduce((best, r) => (!best || r.mets > best.mets ? r : best), null);
-  const personal = computePersonalAverage();
-  const above = [];
-  personal.forEach((r, i) => {
-    const c = state.classAverage[i];
-    if (r.n > 0 && Number.isFinite(r.mets) && c && Number.isFinite(c.mean) && r.mets > c.mean + Math.max(0.3, c.sd || 0)) {
-      above.push(r.minute);
-    }
-  });
-  const firstAbove = above.length ? minuteToTime(above[0]).slice(0, 5) : '-';
-  const lastAbove = above.length ? minuteToTime(above[above.length - 1]).slice(0, 5) : '-';
-  const blocks = parseLectureBlocks(el('lectureBlocks').value);
+  const blocks = parseLectureBlocks('08:50-10:20,10:30-12:00,13:30-15:00,15:10-16:40,16:50-18:20');
   const inLecture = (m) => blocks.some((b) => m >= b.start && m < b.end);
   const lectureVals = allValid.filter((r) => inLecture(r.minute)).map((r) => r.mets);
   const nonLectureVals = allValid.filter((r) => !inLecture(r.minute)).map((r) => r.mets);
   const summaryByDate = new Map(state.summaryRows.map((r) => [r.date, r]));
   const bestSteps = state.processedDays.map((d) => ({ date: d.date, steps: summaryByDate.get(d.date)?.steps })).filter((r) => Number.isFinite(r.steps)).sort((a, b) => b.steps - a.steps)[0];
+
+  const weekdaySeries = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map((key) => {
+    const vals = state.weekdayAverage.map((r) => r[key]).filter((v) => Number.isFinite(v));
+    return { key, mean: vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : NaN };
+  }).filter((r) => Number.isFinite(r.mean)).sort((a, b) => b.mean - a.mean);
+  const jp = { Mon: '月曜', Tue: '火曜', Wed: '水曜', Thu: '木曜', Fri: '金曜' };
+  const topWeekday = weekdaySeries[0];
+
   const cards = [
-    ['最大活動', peak ? `${peak.date} ${String(peak.time).slice(0,5)} に ${fmtNumber(peak.mets, 1)} METsを記録しました。この時間帯の行動を思い出すと、METsの意味を具体的に解釈できます。` : '高活動区間は検出されませんでした。'],
-    ['平均より高い時間帯', above.length ? `あなたの平均は ${firstAbove} から ${lastAbove} の間で全体平均より高い部分があります。移動、運動、アルバイト、部活動などとの関連を考えてください。` : '全体平均を大きく上回る時間帯は目立ちませんでした。'],
+    ['最大活動', peak ? `${peak.date} ${String(peak.time).slice(0, 5)} に ${fmtNumber(peak.mets, 1)} METsを記録しました。この時間帯の行動を思い出すと、METsの意味を具体的に解釈できます。` : '高活動区間は検出されませんでした。'],
     ['講義時間との比較', `講義時間の平均METsは ${fmtNumber(mean(lectureVals), 2)}、講義時間外は ${fmtNumber(mean(nonLectureVals), 2)} です。座位時間と移動時間の違いを考察できます。`],
+    ['曜日別の特徴', topWeekday ? `平均ファイルでは ${jp[topWeekday.key]} の平均METsが最も高く、平均値は ${fmtNumber(topWeekday.mean, 2)} でした。通学や授業構成の違いと関連づけて考察してください。` : '平均ファイルを読み込むと、曜日別の特徴を表示します。'],
     ['曜日差', bestSteps ? `歩数が最も多い日は ${bestSteps.date} で ${fmtNumber(bestSteps.steps)}歩でした。通学手段、授業数、部活動の有無を関連付けて考察してください。` : 'summaryファイルを読み込むと曜日別歩数の考察ができます。'],
-    ['レポートの問い', '装着時間が短い日は平均値の信頼性が下がります。どの日を主に解釈し、どの日を参考値にすべきかを説明してください。'],
+    ['レポートの問い', 'データ数が少ない時間帯では平均値の信頼性が下がります。グラフの点線区間に注目し、どこを慎重に解釈すべきか説明してください。'],
   ];
   box.className = 'insights';
   box.innerHTML = cards.map(([title, body]) => `<div class="insight-card"><strong>${title}</strong><p>${body}</p></div>`).join('');
@@ -646,7 +790,7 @@ async function handleProcessedFiles(files) {
 
 async function handleClassAverageFile(file) {
   const text = await readTextFile(file);
-  state.classAverage = parseClassAverage(text);
+  state.weekdayAverage = parseWeekdayAverage(text);
   el('classFileName').textContent = file.name;
   updateAll();
 }
@@ -660,10 +804,10 @@ async function loadSample() {
       days.push(parseProcessed(await fetchText(p), p));
     }
     state.processedDays = days.sort((a, b) => a.date.localeCompare(b.date));
-    state.classAverage = parseClassAverage(await fetchText(manifest.classAverage));
+    state.weekdayAverage = parseWeekdayAverage(await fetchText('data/weekday_mean.csv'));
     el('summaryFileName').textContent = 'sample/summary.csv';
     el('processedFileName').textContent = `${days.length}サンプルファイル`;
-    el('classFileName').textContent = 'sample class average';
+    el('classFileName').textContent = 'data/weekday_mean.csv';
     updateAll();
   } catch (err) {
     alert(`サンプルデータを読み込めませんでした: ${err.message}`);
@@ -673,10 +817,8 @@ async function loadSample() {
 function clearData() {
   state.summaryRows = [];
   state.processedDays = [];
-  state.classAverage = [];
   el('summaryFileName').textContent = '未選択';
   el('processedFileName').textContent = '未選択';
-  el('classFileName').textContent = 'サンプル平均を使用';
   updateAll();
 }
 
@@ -706,7 +848,15 @@ setupDropZone('processedDrop', 'processedInput', handleProcessedFiles);
 setupDropZone('classDrop', 'classAverageInput', handleClassAverageFile);
 el('loadSampleBtn').addEventListener('click', loadSample);
 el('clearBtn').addEventListener('click', clearData);
-el('redrawBtn').addEventListener('click', drawTimeseries);
-el('daySelect').addEventListener('change', drawTimeseries);
-el('lectureBlocks').addEventListener('change', () => { drawTimeseries(); updateInsights(); });
-updateAll();
+
+async function loadDefaultWeekdayAverage() {
+  try {
+    state.weekdayAverage = parseWeekdayAverage(await fetchText('data/weekday_mean.csv'));
+    el('classFileName').textContent = 'data/weekday_mean.csv';
+  } catch (err) {
+    console.warn('weekday mean csv could not be loaded', err);
+  }
+  updateAll();
+}
+
+loadDefaultWeekdayAverage();
