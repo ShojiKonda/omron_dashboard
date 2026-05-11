@@ -9,22 +9,11 @@
   <body>
     <header class="hero">
       <div class="hero-copy">
-        <p class="eyebrow">OMRON Classroom Data Lab</p>
-        <h1>Activity Rhythm Dashboard</h1>
+        <p class="eyebrow">Classroom</p>
+        <h1>Activity Dashboard</h1>
         <p class="lead">
-          OMRON活動量計のsummary CSVとprocessed CSVを読み込み、歩数、エクササイズ量、1日のMETs時系列、個人平均と全体平均の違いを可視化します。
+          OMRON活動量計のデータを読み込み可視化
         </p>
-        <div class="hero-tags">
-          <span>Browser only</span>
-          <span>No login</span>
-          <span>No upload to server</span>
-        </div>
-      </div>
-      <div class="hero-card">
-        <span class="status-dot"></span>
-        <strong>学生データはブラウザ内で処理</strong>
-        <small>CSVは外部サーバーへ送信されません</small>
-      </div>
     </header>
 
     <main class="layout">
@@ -33,7 +22,7 @@
           <span>1</span>
           <div>
             <h2>データを読み込む</h2>
-            <p>summary CSVを1つ、processed CSVを複数選択します。ファイルはブラウザ内で処理されます。</p>
+            <p>サマリーデータ（学籍番号.csv）、各日の詳細データ（*_processed.csv）を複数選択します。ファイルはブラウザ内で処理されます。</p>
           </div>
         </div>
         <div class="drop-grid two">
@@ -72,7 +61,7 @@
         <article class="stat-card">
           <span class="card-label">平均METs</span>
           <strong id="avgMets">-</strong>
-          <small>processedから算出</small>
+          <small>各日の詳細データから算出</small>
         </article>
         <article class="stat-card">
           <span class="card-label">平均エクササイズ</span>
@@ -86,7 +75,8 @@
           <span>2</span>
           <div>
             <h2>サマリーデータの可視化</h2>
-            <p>装着時間が180分以上の日だけを対象に、歩数とエクササイズ合計を日別棒グラフで確認します。点線は全員平均です。</p>
+            <p>装着時間が180分以上の日だけを対象に、歩数とエクササイズ合計を日別棒グラフで可視化</p>
+            <p>点線は全員の全日平均</p>
           </div>
         </div>
         <div class="legend summary-legend">
@@ -111,7 +101,8 @@
           <span>3</span>
           <div>
             <h2>各個人の各日の時系列データ</h2>
-            <p>processed CSVから、選択日のMETs時系列を表示します。「全日」を選ぶと全ファイルを重ね描きします。</p>
+            <p>各日の詳細データから、選択日の活動強度（METs）パターンを表示</p>
+            <p>「全日」を選ぶと全ファイルを重ね描き</p>
           </div>
         </div>
         <div class="control-row">
@@ -137,7 +128,8 @@
           <span>4</span>
           <div>
             <h2>個人平均と全体平均の比較</h2>
-            <p>各個人のprocessed CSVから計算した平均パターンと、全平日平均を比較します。横軸の表示範囲を選択できます。</p>
+            <p>各個人の平均活動強度パターンと、全員の全平日平均を比較</p>
+            <p>横軸の表示範囲を選択可能</p>
           </div>
         </div>
         <div class="control-row compact-controls">
@@ -160,7 +152,8 @@
           <span>5</span>
           <div>
             <h2>平日平均METs: 月〜金</h2>
-            <p>月曜〜金曜の全員平均METsを比較します。横軸の表示範囲を選択できます。</p>
+            <p>月曜〜金曜の全員平均活動強度パターンを比較</p>
+            <p>横軸の表示範囲を選択可能</p>
           </div>
         </div>
         <div class="control-row compact-controls">
