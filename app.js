@@ -518,11 +518,6 @@ function drawLineSeries(ctx, series, box, yMax, color, startMinute = 0, endMinut
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
 
-  ctx.strokeStyle = color;
-  ctx.lineWidth = width + 3;
-  ctx.globalAlpha = alpha * 0.10;
-  strokePath();
-
   ctx.globalAlpha = alpha;
   ctx.strokeStyle = color;
   ctx.lineWidth = width;

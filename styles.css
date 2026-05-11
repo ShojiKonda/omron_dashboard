@@ -518,3 +518,24 @@ canvas,
 .stat-card {
   border-color: rgba(148, 163, 184, 0.24) !important;
 }
+
+
+/* v12: remove text and line glow effects */
+*,
+*::before,
+*::after {
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+.legend .line,
+.line,
+.line.dashed {
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+button.primary,
+.status-dot {
+  box-shadow: none !important;
+}
