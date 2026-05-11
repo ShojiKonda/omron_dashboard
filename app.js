@@ -11,20 +11,20 @@ const state = {
 const el = (id) => document.getElementById(id);
 
 const COLORS = {
-  ink: '#e5edf7',
-  muted: '#9fb0c7',
-  faint: 'rgba(148, 163, 184, 0.18)',
-  grid: 'rgba(148, 163, 184, 0.16)',
-  chartBgTop: '#101827',
-  chartBgBottom: '#0b1120',
-  plotBg: 'rgba(15, 23, 42, 0.78)',
-  blue: '#38bdf8',
+  ink: '#e8eef7',
+  muted: '#9aa8bd',
+  faint: 'rgba(148, 163, 184, 0.12)',
+  grid: 'rgba(148, 163, 184, 0.18)',
+  axis: 'rgba(226, 232, 240, 0.42)',
+  chartBg: '#111827',
+  plotBg: '#111827',
+  blue: '#60a5fa',
   cyan: '#22d3ee',
-  navy: '#e5edf7',
+  navy: '#e8eef7',
   orange: '#fb923c',
-  green: '#34d399',
-  purple: '#c084fc',
-  amber: '#fbbf24',
+  green: '#2dd4bf',
+  purple: '#a78bfa',
+  amber: '#facc15',
   pink: '#f472b6',
   red: '#f87171',
 };
@@ -404,10 +404,7 @@ function getTimeRange() {
 
 function clearCanvas(ctx, w, h) {
   ctx.clearRect(0, 0, w, h);
-  const bg = ctx.createLinearGradient(0, 0, 0, h);
-  bg.addColorStop(0, COLORS.chartBgTop);
-  bg.addColorStop(1, COLORS.chartBgBottom);
-  ctx.fillStyle = bg;
+  ctx.fillStyle = COLORS.chartBg;
   ctx.fillRect(0, 0, w, h);
 }
 
@@ -436,7 +433,7 @@ function drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep = 4) {
   roundedRect(ctx, box.left, box.top, box.width, box.height, 18);
   ctx.fill();
 
-  ctx.strokeStyle = 'rgba(226, 232, 240, 0.08)';
+  ctx.strokeStyle = COLORS.faint;
   ctx.lineWidth = 1;
   ctx.stroke();
 
@@ -472,7 +469,7 @@ function drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep = 4) {
     ctx.fillText(`${String(h).padStart(2, '0')}:00`, x, box.bottom + 14);
   }
 
-  ctx.strokeStyle = 'rgba(226, 232, 240, 0.34)';
+  ctx.strokeStyle = COLORS.axis;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.moveTo(box.left, box.bottom);
@@ -516,8 +513,8 @@ function drawLineSeries(ctx, series, box, yMax, color, startMinute = 0, endMinut
   ctx.lineCap = 'round';
 
   ctx.strokeStyle = color;
-  ctx.lineWidth = width + 5;
-  ctx.globalAlpha = alpha * 0.18;
+  ctx.lineWidth = width + 3;
+  ctx.globalAlpha = alpha * 0.10;
   strokePath();
 
   ctx.globalAlpha = alpha;
@@ -594,18 +591,13 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenc
     const v = Number.isFinite(r[valueKey]) ? r[valueKey] : 0;
     const x = box.left + gap + i * (barW + gap);
     const barH = v / yMax * box.height;
-    const grad = ctx.createLinearGradient(0, box.bottom - barH, 0, box.bottom);
-    grad.addColorStop(0, color);
-    grad.addColorStop(0.58, color);
-    grad.addColorStop(1, 'rgba(15, 23, 42, 0.2)');
-
     ctx.save();
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 14;
-    ctx.shadowOffsetY = 7;
-    ctx.fillStyle = grad;
-    roundedRect(ctx, x, box.bottom - barH, barW, barH, 10);
+    ctx.fillStyle = color;
+    roundedRect(ctx, x, box.bottom - barH, barW, barH, 8);
     ctx.fill();
+    ctx.strokeStyle = 'rgba(232, 238, 247, 0.28)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
     ctx.restore();
 
     ctx.fillStyle = COLORS.ink;
@@ -631,8 +623,6 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenc
     ctx.strokeStyle = COLORS.amber;
     ctx.lineWidth = 3;
     ctx.setLineDash([10, 7]);
-    ctx.shadowColor = COLORS.amber;
-    ctx.shadowBlur = 10;
     ctx.beginPath();
     ctx.moveTo(box.left, y);
     ctx.lineTo(box.right, y);
@@ -644,7 +634,7 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenc
     const labelX = box.right - labelWidth - 10;
     const labelY = Math.max(box.top + 10, y - 28);
     ctx.shadowBlur = 0;
-    ctx.fillStyle = 'rgba(251, 191, 36, 0.16)';
+    ctx.fillStyle = 'rgba(250, 204, 21, 0.12)';
     roundedRect(ctx, labelX, labelY, labelWidth, 24, 12);
     ctx.fill();
     ctx.fillStyle = COLORS.ink;

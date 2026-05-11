@@ -375,3 +375,16 @@ canvas {
   background: repeating-linear-gradient(to right, #fbbf24 0 9px, transparent 9px 15px);
   box-shadow: 0 0 14px rgba(251,191,36,0.45);
 }
+
+
+/* v8 chart consistency */
+canvas {
+  background: #111827;
+  border-color: rgba(148, 163, 184, 0.26);
+}
+.chart-panel canvas, .mini-chart canvas {
+  background: #111827;
+}
+.summary-wide canvas {
+  border-radius: 12px;
+}

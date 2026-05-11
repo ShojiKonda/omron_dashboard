@@ -14,6 +14,7 @@
         <p class="lead">
           OMRON活動量計のデータを読み込み可視化
         </p>
+      </div>
     </header>
 
     <main class="layout">
@@ -28,13 +29,13 @@
         <div class="drop-grid two">
           <label class="drop-zone" id="summaryDrop">
             <input id="summaryInput" type="file" accept=".csv,text/csv" />
-            <strong>summary CSV</strong>
+            <strong>サマリーデータ（学籍番号.csv）</strong>
             <small>例: demo_20221021.csv</small>
             <span id="summaryFileName">未選択</span>
           </label>
           <label class="drop-zone" id="processedDrop">
             <input id="processedInput" type="file" accept=".csv,text/csv" multiple />
-            <strong>processed CSV</strong>
+            <strong>各日の詳細データ（*_processed.csv）</strong>
             <small>例: *_processed_20221021.csv</small>
             <span id="processedFileName">未選択</span>
           </label>
@@ -43,7 +44,7 @@
       </section>
 
       <section class="dashboard-grid">
-        <article class="stat-card accent">
+        <article class="stat-card">
           <span class="card-label">解析対象日数</span>
           <strong id="validDays">0日</strong>
           <small id="validDaysNote">データ未読込</small>
