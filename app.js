@@ -260,6 +260,17 @@ function sum(values) {
   return values.filter(Number.isFinite).reduce((a, b) => a + b, 0);
 }
 
+function niceYMax(values, minimum = 3, cap = Infinity) {
+  const good = values.filter((v) => Number.isFinite(v) && v > 0);
+  const raw = good.length ? Math.max(...good) * 1.12 : minimum;
+  const capped = Math.min(raw, cap);
+  if (capped <= 3) return Math.min(cap, 3);
+  if (capped <= 6) return Math.min(cap, Math.ceil(capped * 2) / 2);
+  if (capped <= 12) return Math.min(cap, Math.ceil(capped));
+  const magnitude = 10 ** Math.floor(Math.log10(capped));
+  return Math.min(cap, Math.ceil(capped / magnitude) * magnitude);
+}
+
 function computeDayStats(data) {
   const valid = data.filter((r) => r.mets > 0);
   return {
@@ -298,17 +309,19 @@ function updateCards() {
   el('validDays').textContent = `${days}日`;
   el('validDaysNote').textContent = days ? `${state.processedDays[0].date} から ${state.processedDays[days - 1].date}` : 'データ未読込';
 
-  const totalSteps = sum(state.summaryRows.map((r) => r.steps));
-  el('totalSteps').textContent = totalSteps ? `${fmtNumber(totalSteps)}歩` : '-';
+  const eligibleRows = getEligibleSummaryRows();
+  const rowsForAverage = eligibleRows;
+  const avgSteps = mean(rowsForAverage.map((r) => r.steps));
+  el('avgStepsSummary').textContent = Number.isFinite(avgSteps) ? `${fmtNumber(avgSteps)}歩` : '-';
 
-  const eligibleCount = getEligibleSummaryRows().length;
+  const eligibleCount = eligibleRows.length;
   el('eligibleDays').textContent = `${eligibleCount}日`;
 
   const mets = mean(state.processedDays.map((d) => d.stats.meanMets));
   el('avgMets').textContent = Number.isFinite(mets) ? fmtNumber(mets, 2) : '-';
 
-  const totalEx = sum(state.summaryRows.map((r) => r.exerciseEx));
-  el('totalExercise').textContent = totalEx ? `${fmtNumber(totalEx, 2)} Ex` : '-';
+  const avgEx = mean(rowsForAverage.map((r) => r.exerciseEx));
+  el('avgExerciseSummary').textContent = Number.isFinite(avgEx) ? `${fmtNumber(avgEx, 2)} Ex` : '-';
 }
 
 function updateDailyTable() {
@@ -332,10 +345,44 @@ function updateDaySelect() {
   const select = el('daySelect');
   const old = select.value;
   select.innerHTML = '';
+  select.appendChild(new Option('全日', '__all__'));
   state.processedDays.forEach((day) => {
     select.appendChild(new Option(`${day.date} (${day.weekday || '-'})`, day.id));
   });
   if ([...select.options].some((o) => o.value === old)) select.value = old;
+  else select.value = '__all__';
+}
+
+function setupRangeControls() {
+  const start = el('rangeStart');
+  const end = el('rangeEnd');
+  if (!start || !end || start.options.length) return;
+  for (let h = 0; h <= 23; h++) {
+    const label = `${String(h).padStart(2, '0')}:00`;
+    start.appendChild(new Option(label, String(h)));
+  }
+  for (let h = 1; h <= 24; h++) {
+    const label = `${String(h).padStart(2, '0')}:00`;
+    end.appendChild(new Option(label, String(h)));
+  }
+  start.value = '0';
+  end.value = '24';
+}
+
+function getTimeRange() {
+  const startHour = Number(el('rangeStart')?.value ?? 0);
+  const endHour = Number(el('rangeEnd')?.value ?? 24);
+  let startMinute = Number.isFinite(startHour) ? startHour * 60 : 0;
+  let endMinute = Number.isFinite(endHour) ? endHour * 60 : 1440;
+  if (endMinute <= startMinute) {
+    if (startMinute >= 23 * 60) {
+      startMinute = 23 * 60;
+      endMinute = 24 * 60;
+    } else {
+      endMinute = Math.min(1440, startMinute + 60);
+    }
+  }
+  return { startMinute, endMinute };
 }
 
 function clearCanvas(ctx, w, h) {
@@ -363,19 +410,22 @@ function drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep = 4) {
   ctx.strokeStyle = COLORS.line;
   ctx.lineWidth = 1;
   ctx.fillStyle = COLORS.muted;
-  ctx.font = '13px sans-serif';
+  ctx.font = '14px sans-serif';
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
   for (let i = 0; i <= 5; i++) {
     const v = (yMax / 5) * i;
     const y = box.bottom - (v / yMax) * box.height;
     ctx.beginPath(); ctx.moveTo(box.left, y); ctx.lineTo(box.right, y); ctx.stroke();
-    ctx.fillText(v.toFixed(1), box.left - 10, y);
+    ctx.fillText(v.toFixed(yMax <= 6 ? 1 : 0), box.left - 10, y);
   }
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  for (let h = Math.ceil(startMinute / 60); h <= endMinute / 60; h += hourStep) {
+  const startHour = Math.ceil(startMinute / 60);
+  const endHour = Math.floor(endMinute / 60);
+  for (let h = startHour; h <= endHour; h += hourStep) {
     const m = h * 60;
+    if (m < startMinute || m > endMinute) continue;
     const x = box.left + ((m - startMinute) / (endMinute - startMinute)) * box.width;
     ctx.beginPath(); ctx.moveTo(x, box.top); ctx.lineTo(x, box.bottom); ctx.stroke();
     ctx.fillText(`${String(h).padStart(2, '0')}:00`, x, box.bottom + 10);
@@ -431,35 +481,55 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenc
   const w = canvas.width, h = canvas.height;
   clearCanvas(ctx, w, h);
   if (!rows.length) return drawNoData(ctx, w, h, emptyText);
-  const box = chartBox(w, h, 54, 22, 18, 58);
+  const box = chartBox(w, h, 92, 56, 28, 92);
   const values = rows.map((r) => Number.isFinite(r[valueKey]) ? r[valueKey] : 0);
   const maxCandidate = Math.max(...values, Number.isFinite(referenceValue) ? referenceValue : 0);
-  const yMax = Math.max(1, Math.ceil(maxCandidate * 1.15));
+  const yMax = niceYMax([maxCandidate], 1);
+
   ctx.strokeStyle = COLORS.line;
   ctx.fillStyle = COLORS.muted;
-  ctx.font = '12px sans-serif';
+  ctx.font = '14px sans-serif';
   ctx.textAlign = 'right';
-  for (let i = 0; i <= 4; i++) {
-    const y = box.bottom - (i / 4) * box.height;
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i <= 5; i++) {
+    const y = box.bottom - (i / 5) * box.height;
+    const v = (yMax * i) / 5;
     ctx.beginPath(); ctx.moveTo(box.left, y); ctx.lineTo(box.right, y); ctx.stroke();
-    ctx.fillText(fmtNumber((yMax * i) / 4), box.left - 8, y);
+    ctx.fillText(fmtNumber(v, valueKey === 'exerciseEx' ? 1 : 0), box.left - 12, y);
   }
-  const gap = 8;
-  const barW = Math.max(8, (box.width - gap * (rows.length + 1)) / rows.length);
+
+  ctx.fillStyle = COLORS.navy;
+  ctx.font = '700 15px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(unit, box.left, box.top - 24);
+
+  const gap = Math.max(10, Math.min(22, box.width / Math.max(rows.length * 8, 1)));
+  const barW = Math.max(14, (box.width - gap * (rows.length + 1)) / Math.max(rows.length, 1));
   rows.forEach((r, i) => {
     const v = Number.isFinite(r[valueKey]) ? r[valueKey] : 0;
     const x = box.left + gap + i * (barW + gap);
     const barH = v / yMax * box.height;
     const grad = ctx.createLinearGradient(0, box.bottom - barH, 0, box.bottom);
     grad.addColorStop(0, color);
-    grad.addColorStop(1, 'rgba(37,99,235,0.38)');
+    grad.addColorStop(1, 'rgba(37,99,235,0.32)');
     ctx.fillStyle = grad;
-    roundedRect(ctx, x, box.bottom - barH, barW, barH, 8);
+    roundedRect(ctx, x, box.bottom - barH, barW, barH, 7);
     ctx.fill();
+
+    ctx.fillStyle = COLORS.navy;
+    ctx.font = '700 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    if (barW > 24 && barH > 22) {
+      ctx.fillText(fmtNumber(v, valueKey === 'exerciseEx' ? 1 : 0), x + barW / 2, box.bottom - barH - 6);
+    }
+
     ctx.save();
-    ctx.translate(x + barW / 2, box.bottom + 12);
-    ctx.rotate(-Math.PI / 5);
+    ctx.translate(x + barW / 2, box.bottom + 20);
+    ctx.rotate(-Math.PI / 6);
     ctx.fillStyle = COLORS.muted;
+    ctx.font = '13px sans-serif';
     ctx.textAlign = 'right';
     ctx.fillText(`${r.date.slice(5)}(${r.weekday || '-'})`, 0, 0);
     ctx.restore();
@@ -469,23 +539,20 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenc
     const y = box.bottom - Math.min(referenceValue, yMax) / yMax * box.height;
     ctx.save();
     ctx.strokeStyle = COLORS.navy;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([7, 6]);
+    ctx.lineWidth = 2.4;
+    ctx.setLineDash([9, 7]);
     ctx.beginPath();
     ctx.moveTo(box.left, y);
     ctx.lineTo(box.right, y);
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = COLORS.navy;
-    ctx.font = '700 12px sans-serif';
-    ctx.textAlign = 'right';
-    ctx.fillText(`${referenceLabel}: ${fmtNumber(referenceValue, valueKey === 'exerciseEx' ? 2 : 0)} ${unit}`, box.right - 4, y - 8);
+    ctx.font = '700 13px sans-serif';
+    ctx.textAlign = 'left';
+    const labelY = Math.max(box.top + 16, y - 10);
+    ctx.fillText(`${referenceLabel}: ${fmtNumber(referenceValue, valueKey === 'exerciseEx' ? 2 : 0)} ${unit}`, box.left + 8, labelY);
     ctx.restore();
   }
-
-  ctx.fillStyle = COLORS.muted;
-  ctx.textAlign = 'left';
-  ctx.fillText(unit, box.left, 6);
 }
 
 function drawSummaryCharts() {
@@ -498,17 +565,37 @@ function drawDailyTimeseries() {
   const canvas = el('dailyTimeseriesCanvas');
   const ctx = canvas.getContext('2d');
   const w = canvas.width, h = canvas.height;
-  const day = state.processedDays.find((d) => d.id === el('daySelect').value) || state.processedDays[0];
-  if (!day) return drawNoData(ctx, w, h, 'processed CSVを読み込むと、1日のMETs時系列を表示します。');
+  if (!state.processedDays.length) return drawNoData(ctx, w, h, 'processed CSVを読み込むと、1日のMETs時系列を表示します。');
+
+  const selected = el('daySelect').value || '__all__';
+  const { startMinute, endMinute } = getTimeRange();
+  const days = selected === '__all__'
+    ? state.processedDays
+    : state.processedDays.filter((d) => d.id === selected);
+  const values = days.flatMap((day) => day.data
+    .filter((r) => r.minute >= startMinute && r.minute <= endMinute)
+    .map((r) => r.mets));
+  const yMax = niceYMax(values, 3);
+
   clearCanvas(ctx, w, h);
-  const box = chartBox(w, h);
-  const yMax = 8;
-  drawTimeGrid(ctx, box, yMax, 0, 1440, 4);
-  drawLineSeries(ctx, day.data, box, yMax, COLORS.orange, 0, 1440, 'mets', 2.4);
+  const box = chartBox(w, h, 58, 32, 24, 62);
+  const spanHours = (endMinute - startMinute) / 60;
+  const hourStep = spanHours <= 6 ? 1 : spanHours <= 12 ? 2 : 4;
+  drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep);
+
+  const palette = [COLORS.orange, COLORS.blue, COLORS.green, COLORS.purple, COLORS.amber, COLORS.pink, COLORS.navy];
+  days.forEach((day, idx) => {
+    drawLineSeries(ctx, day.data, box, yMax, palette[idx % palette.length], startMinute, endMinute, 'mets', selected === '__all__' ? 1.8 : 2.8, false, selected === '__all__' ? 0.55 : 1);
+  });
+
   ctx.fillStyle = COLORS.navy;
   ctx.font = '700 15px sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText(`${day.date} (${day.weekday || '-'}) のMETs時系列（0〜8 METs）`, box.left, 8);
+  const rangeLabel = `${String(startMinute / 60).padStart(2, '0')}:00〜${String(endMinute / 60).padStart(2, '0')}:00`;
+  const title = selected === '__all__'
+    ? `全日のMETs時系列 (${rangeLabel})`
+    : `${days[0]?.date || ''} (${days[0]?.weekday || '-'}) のMETs時系列 (${rangeLabel})`;
+  ctx.fillText(title, box.left, 14);
 }
 
 function drawPersonalAverageComparison() {
@@ -519,19 +606,15 @@ function drawPersonalAverageComparison() {
   clearCanvas(ctx, w, h);
   const personal = computePersonalAverage();
   const classAll = state.weekdayAverage.map((r) => ({ minute: r.minute, mets: r.all }));
-  const yMax = Math.max(4, Math.ceil(Math.max(
-    ...personal.map((r) => r.mets).filter(Number.isFinite),
-    ...classAll.map((r) => r.mets).filter(Number.isFinite),
-    3
-  ) + 0.5));
-  const box = chartBox(w, h);
+  const yMax = 6;
+  const box = chartBox(w, h, 58, 32, 24, 62);
   drawTimeGrid(ctx, box, yMax, 0, 1440, 4);
   drawLineSeries(ctx, classAll, box, yMax, COLORS.navy, 0, 1440, 'mets', 3.0);
   drawLineSeries(ctx, personal, box, yMax, COLORS.orange, 0, 1440, 'mets', 2.5);
   ctx.fillStyle = COLORS.navy;
   ctx.font = '700 15px sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('個人平均 vs 全平日平均', box.left, 8);
+  ctx.fillText('個人平均 vs 全平日平均（0〜6 METs）', box.left, 14);
 }
 
 function drawWeekdayMeanChart() {
@@ -543,23 +626,23 @@ function drawWeekdayMeanChart() {
   const startMinute = 8 * 60;
   const endMinute = 20 * 60;
   const visible = state.weekdayAverage.filter((r) => r.minute >= startMinute && r.minute <= endMinute);
-  const yMax = Math.max(4, Math.ceil(Math.max(...['Mon','Tue','Wed','Thu','Fri'].flatMap((key) => visible.map((r) => r[key])).filter(Number.isFinite), 3) + 0.5));
-  const box = chartBox(w, h);
+  const yMax = niceYMax(['Mon','Tue','Wed','Thu','Fri'].flatMap((key) => visible.map((r) => r[key])), 4);
+  const box = chartBox(w, h, 58, 32, 24, 62);
   drawTimeGrid(ctx, box, yMax, startMinute, endMinute, 2);
   [
-    { valueKey: 'Mon', countKey: 'Num_Mon', color: COLORS.blue },
-    { valueKey: 'Tue', countKey: 'Num_Tue', color: COLORS.green },
-    { valueKey: 'Wed', countKey: 'Num_Wed', color: COLORS.purple },
-    { valueKey: 'Thu', countKey: 'Num_Thu', color: COLORS.amber },
-    { valueKey: 'Fri', countKey: 'Num_Fri', color: COLORS.pink },
-  ].forEach((cfg) => drawLowReliabilityLine(ctx, state.weekdayAverage, box, yMax, { ...cfg, lowThreshold: 3, width: 2.3 }, startMinute, endMinute));
-  const note = el('weekdayReliabilityNote');
-  const counts = visible.flatMap((r) => [r.Num_Mon, r.Num_Tue, r.Num_Wed, r.Num_Thu, r.Num_Fri]).filter(Number.isFinite);
-  if (note && counts.length) note.textContent = `点線は n<3 の低信頼区間です。表示範囲のn: ${fmtNumber(Math.min(...counts))}〜${fmtNumber(Math.max(...counts))}`;
+    { key: 'Mon', color: COLORS.blue },
+    { key: 'Tue', color: COLORS.green },
+    { key: 'Wed', color: COLORS.purple },
+    { key: 'Thu', color: COLORS.amber },
+    { key: 'Fri', color: COLORS.pink },
+  ].forEach((cfg) => {
+    const series = state.weekdayAverage.map((r) => ({ minute: r.minute, mets: r[cfg.key] }));
+    drawLineSeries(ctx, series, box, yMax, cfg.color, startMinute, endMinute, 'mets', 2.4, false, 1);
+  });
   ctx.fillStyle = COLORS.navy;
   ctx.font = '700 15px sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('月〜金の全員平均METs（8:00〜20:00）', box.left, 8);
+  ctx.fillText('月〜金の全員平均METs（8:00〜20:00）', box.left, 14);
 }
 
 function roundedRect(ctx, x, y, w, h, r) {
@@ -667,10 +750,13 @@ function setupDropZone(zoneId, inputId, handler) {
   });
 }
 
+setupRangeControls();
 setupDropZone('summaryDrop', 'summaryInput', handleSummaryFile);
 setupDropZone('processedDrop', 'processedInput', handleProcessedFiles);
 el('loadSampleBtn').addEventListener('click', loadSample);
 el('clearBtn').addEventListener('click', clearData);
 el('daySelect').addEventListener('change', drawDailyTimeseries);
+el('rangeStart').addEventListener('change', drawDailyTimeseries);
+el('rangeEnd').addEventListener('change', drawDailyTimeseries);
 
 loadDefaultWeekdayAverage().then(updateAll);

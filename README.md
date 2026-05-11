@@ -1,46 +1,61 @@
 # OMRON Activity Dashboard
 
-授業で配布していたExcel操作を置き換えるための、静的Webダッシュボードです。OMRON活動量計の summary CSV と 1分ごとの processed CSV を読み込み、歩数、エクササイズ合計、METs時系列、個人平均と全体平均の比較、曜日別平均METsをブラウザ内で可視化します。
+授業で配布していたExcel操作を置き換えるための、静的Webダッシュボードです。OMRON活動量計の summary CSV と 1分ごとの processed CSV を読み込み、学生ごとの活動量をブラウザ上で可視化します。
 
-## 特徴
+## 主な機能
 
 - ブラウザだけで動作します
 - サーバー、ログイン、データベースは不要です
 - 学生がアップロードしたCSVはサーバーへ送信されません
+- UTF-8 / Shift-JIS / CP932 のCSVに対応します
 - GitHub Pagesで公開できます
-- UTF-8 / Shift-JIS / CP932のCSVに対応します
-- 付属サンプルデータですぐに動作確認できます
 
-## 画面構成
+## 表示内容
 
-1. データを読み込む
-   - summary CSVを1つ選択
-   - processed CSVを複数選択
-   - `data/weekday_mean.csv` と `data/step_ex.csv` は自動読み込み
-2. サマリーデータの可視化
+1. データ読み込み
+   - summary CSVを1つ読み込み
+   - processed CSVを複数読み込み
+   - `data/weekday_mean.csv` と `data/step_ex.csv` はGitHub上のファイルを自動使用
+
+2. 読み込み後サマリー
+   - 解析対象日数
+   - 平均歩数
+   - 可視化対象日数（装着時間180分以上）
+   - 平均METs
+   - 平均エクササイズ
+
+3. サマリーデータの可視化
    - 装着時間180分以上の日だけを対象
-   - 歩数とエクササイズ合計を個人データとして棒グラフ表示
-   - `data/step_ex.csv` の全員平均を点線で表示
-3. 各個人の各日の時系列データ
-   - processed CSVから選択日のMETs時系列を0時〜24時で表示
-   - 縦軸は0〜8 METsに固定
-4. 個人平均と全体平均の比較
-   - processed CSVから個人平均パターンを計算
-   - `data/weekday_mean.csv` の全平日平均と比較
-5. 平日平均METs
+   - 歩数を日別棒グラフで表示
+   - エクササイズExを日別棒グラフで表示
+   - 全員平均を点線で表示
+
+4. 各個人の各日の時系列データ
+   - processed CSVからMETs時系列を表示
+   - 日付選択に加えて「全日」表示に対応
+   - 横軸の表示範囲を選択可能
+   - 縦軸は表示データに合わせて自動調整
+
+5. 個人平均と全体平均の比較
+   - 個人のprocessed CSVから平均パターンを計算
+   - 全平日平均と比較
+   - 縦軸は0〜6 METs
+
+6. 平日平均METs: 月〜金
    - 月曜〜金曜の全員平均METsを表示
+   - 8時〜20時を表示
+   - 低信頼区間の注釈や点線表示は行わない
 
 ## ファイル構成
 
 ```text
-activity-rhythm-dashboard/
+omron_dashboard/
 ├─ index.html
 ├─ styles.css
 ├─ app.js
 ├─ data/
 │  ├─ weekday_mean.csv
-│  ├─ step_ex.csv
-│  └─ class_average_by_minute.csv
+│  └─ step_ex.csv
 ├─ sample/
 │  ├─ manifest.json
 │  ├─ summary.csv
@@ -54,14 +69,20 @@ activity-rhythm-dashboard/
 
 ### summary CSV
 
-OMRON出力のsummaryファイル、または以下の簡易形式に対応します。
+主に以下の列を利用します。
+
+- 日付
+- 曜日
+- 歩数合計(歩)
+- 装着時間(分)
+- エクササイズ合計(Ex)
+
+簡易形式の例:
 
 ```csv
-date,weekday,steps,wear_minutes,walking_minutes,total_calories,activity_calories,exercise_ex
-2022-10-21,金,11655,644,132,2395,576,8.58
+date,weekday,steps,wear_minutes,exercise_ex
+2022-10-21,金,11655,644,8.58
 ```
-
-サマリー可視化では、`wear_minutes` または `装着時間(分)` が180分以上の日だけを使用します。
 
 ### processed CSV
 
@@ -73,25 +94,16 @@ date,weekday,steps,wear_minutes,walking_minutes,total_calories,activity_calories
 2,00:02:00,1.3,0.0
 ```
 
-列の意味は以下です。
+列の意味:
 
 1. minute index
 2. time
 3. METs
 4. flag
 
-### step_ex.csv
+### 平日平均CSV
 
-サマリーデータの全員平均として使用します。
-
-```csv
-ave_step,ave_exercise
-8406.949129,5.649763821
-```
-
-### weekday_mean.csv
-
-平日平均METsとして使用します。
+`data/weekday_mean.csv` を自動読み込みします。
 
 想定列:
 
@@ -99,13 +111,22 @@ ave_step,ave_exercise
 - `all`, `Mon`, `Tue`, `Wed`, `Thu`, `Fri`
 - `Num_Mon`, `Num_Tue`, `Num_Wed`, `Num_Thu`, `Num_Fri`
 
+### 歩数・Ex全員平均CSV
+
+`data/step_ex.csv` を自動読み込みします。
+
+想定列:
+
+- `ave_step`
+- `ave_exercise`
+
 ## GitHub Pagesで公開する方法
 
 1. GitHubのリポジトリを開く
 2. `Settings` → `Pages` を開く
-3. `Build and deployment` の `Source` を `GitHub Actions` に設定する
-4. mainブランチへpushする
-5. Actions完了後、PagesのURLで公開されます
+3. `Source` を `Deploy from a branch` に設定
+4. Branchを `main`、folderを `/root` に設定
+5. 保存後、Pages URLで公開
 
 ## 注意
 

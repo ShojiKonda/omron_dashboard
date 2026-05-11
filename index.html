@@ -80,9 +80,9 @@
           <small id="validDaysNote">データ未読込</small>
         </article>
         <article class="stat-card">
-          <span class="card-label">総歩数</span>
-          <strong id="totalSteps">-</strong>
-          <small>summaryから算出</small>
+          <span class="card-label">平均歩数</span>
+          <strong id="avgStepsSummary">-</strong>
+          <small>装着180分以上の日で算出</small>
         </article>
         <article class="stat-card">
           <span class="card-label">可視化対象日数</span>
@@ -95,9 +95,9 @@
           <small>processedから算出</small>
         </article>
         <article class="stat-card">
-          <span class="card-label">エクササイズ合計</span>
-          <strong id="totalExercise">-</strong>
-          <small>summaryのEx列</small>
+          <span class="card-label">平均エクササイズ</span>
+          <strong id="avgExerciseSummary">-</strong>
+          <small>装着180分以上の日で算出</small>
         </article>
       </section>
 
@@ -114,14 +114,14 @@
           <span><i class="line purple"></i>Ex: 個人データ</span>
           <span><i class="line dashed"></i>全員平均</span>
         </div>
-        <div class="summary-chart-grid two">
-          <article class="mini-chart">
+        <div class="summary-chart-grid stacked">
+          <article class="mini-chart summary-wide">
             <h3>歩数</h3>
-            <canvas id="summaryStepsCanvas" width="720" height="360" aria-label="steps chart"></canvas>
+            <canvas id="summaryStepsCanvas" width="1180" height="430" aria-label="steps chart"></canvas>
           </article>
-          <article class="mini-chart">
-            <h3>エクササイズ合計</h3>
-            <canvas id="summaryExerciseCanvas" width="720" height="360" aria-label="exercise chart"></canvas>
+          <article class="mini-chart summary-wide">
+            <h3>エクササイズ Ex</h3>
+            <canvas id="summaryExerciseCanvas" width="1180" height="430" aria-label="exercise chart"></canvas>
           </article>
         </div>
       </section>
@@ -131,17 +131,23 @@
           <span>3</span>
           <div>
             <h2>各個人の各日の時系列データ</h2>
-            <p>processed CSVから、選択した1日のMETs時系列を0時〜24時で表示します。</p>
+            <p>processed CSVから、選択日のMETs時系列を表示します。「全日」を選ぶと全ファイルを重ね描きします。</p>
           </div>
         </div>
         <div class="control-row">
           <label>表示する日
             <select id="daySelect"></select>
           </label>
+          <label>横軸開始
+            <select id="rangeStart"></select>
+          </label>
+          <label>横軸終了
+            <select id="rangeEnd"></select>
+          </label>
         </div>
         <div class="legend">
           <span><i class="line orange"></i>個人データ</span>
-          <span>縦軸: 0〜8 METs</span>
+          <span>縦軸: 表示範囲に合わせて自動調整</span>
         </div>
         <canvas id="dailyTimeseriesCanvas" width="1180" height="460" aria-label="daily METs time series"></canvas>
       </section>
@@ -166,7 +172,7 @@
           <span>5</span>
           <div>
             <h2>平日平均METs: 月〜金</h2>
-            <p>月曜〜金曜の全員平均METsを8時〜20時で比較します。点線はデータ数が少ない区間です。</p>
+            <p>月曜〜金曜の全員平均METsを8時〜20時で比較します。</p>
           </div>
         </div>
         <div class="legend">
@@ -175,9 +181,7 @@
           <span><i class="line wednesday"></i>水曜</span>
           <span><i class="line thursday"></i>木曜</span>
           <span><i class="line friday"></i>金曜</span>
-          <span><i class="line dashed"></i>低信頼</span>
         </div>
-        <p id="weekdayReliabilityNote" class="chart-note">低信頼の判定: 曜日別は n &lt; 3 として表示します。</p>
         <canvas id="weekdayMeanCanvas" width="1180" height="460" aria-label="weekday mean METs chart"></canvas>
       </section>
     </main>
