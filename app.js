@@ -693,11 +693,6 @@ function drawDailyTimeseries() {
   ctx.fillStyle = COLORS.navy;
   ctx.font = '800 19px "Noto Sans JP", sans-serif';
   ctx.textAlign = 'left';
-  const rangeLabel = `${String(startMinute / 60).padStart(2, '0')}:00〜${String(endMinute / 60).padStart(2, '0')}:00`;
-  const title = selected === '__all__'
-    ? `全日のMETs時系列 (${rangeLabel})`
-    : `${days[0]?.date || ''} (${days[0]?.weekday || '-'}) のMETs時系列 (${rangeLabel})`;
-  ctx.fillText(title, box.left, 24);
 }
 
 function drawPersonalAverageComparison() {
@@ -719,8 +714,6 @@ function drawPersonalAverageComparison() {
   ctx.fillStyle = COLORS.navy;
   ctx.font = '800 19px "Noto Sans JP", sans-serif';
   ctx.textAlign = 'left';
-  const rangeLabel = `${String(startMinute / 60).padStart(2, '0')}:00〜${String(endMinute / 60).padStart(2, '0')}:00`;
-  ctx.fillText(`個人平均 vs 全平日平均（${rangeLabel}, 0〜6 METs）`, box.left, 24);
 }
 
 function drawWeekdayMeanChart() {
@@ -749,8 +742,6 @@ function drawWeekdayMeanChart() {
   ctx.fillStyle = COLORS.navy;
   ctx.font = '800 19px "Noto Sans JP", sans-serif';
   ctx.textAlign = 'left';
-  const rangeLabel = `${String(startMinute / 60).padStart(2, '0')}:00〜${String(endMinute / 60).padStart(2, '0')}:00`;
-  ctx.fillText(`月〜金の全員平均METs（${rangeLabel}）`, box.left, 24);
 }
 
 function roundedRect(ctx, x, y, w, h, r) {
