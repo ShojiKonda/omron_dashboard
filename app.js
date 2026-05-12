@@ -744,13 +744,13 @@ function drawDailyTimeseries() {
   const box = chartBox(w, h, 96, 42, 34, 92);
   const spanHours = (endMinute - startMinute) / 60;
   const hourStep = spanHours <= 6 ? 1 : spanHours <= 12 ? 2 : 4;
-  drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep, { yMin: 1, yGridStep: 1, yLabelStep: 1, yDigits: 1, strictIntegerGrid: true });
+  drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep, { yMin: 0, yGridStep: 1, yLabelStep: 1, yDigits: 1, strictIntegerGrid: true });
 
   days.forEach((day, idx) => {
     const color = selected === '__all__' ? weekdayColor(day.weekday, idx) : COLORS.orange;
     const width = selected === '__all__' ? 2.6 : 3.0;
     const alpha = selected === '__all__' ? 0.92 : 1;
-    drawLineSeries(ctx, day.data, box, yMax, color, startMinute, endMinute, 'mets', width, false, alpha, 1);
+    drawLineSeries(ctx, day.data, box, yMax, color, startMinute, endMinute, 'mets', width, false, alpha, 0);
   });
 
   ctx.fillStyle = COLORS.navy;
