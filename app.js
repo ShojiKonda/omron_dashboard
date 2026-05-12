@@ -445,6 +445,8 @@ function drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep = 4, opti
   const yGridStep = Number.isFinite(options.yGridStep) ? options.yGridStep : null;
   const yLabelStep = Number.isFinite(options.yLabelStep) ? options.yLabelStep : yGridStep;
   const yDigits = Number.isFinite(options.yDigits) ? options.yDigits : (yMax <= 6 ? 1 : 0);
+  const yAxisLabel = options.yAxisLabel || 'METs';
+  const xAxisLabel = options.xAxisLabel || '時刻';
   const shouldLabel = (value) => {
     if (!Number.isFinite(yLabelStep) || yLabelStep <= 0) return true;
     return Math.abs(value / yLabelStep - Math.round(value / yLabelStep)) < 1e-6;
@@ -498,6 +500,18 @@ function drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep = 4, opti
   ctx.moveTo(box.left, box.top);
   ctx.lineTo(box.left, box.bottom);
   ctx.stroke();
+
+  ctx.fillStyle = COLORS.ink;
+  ctx.font = '800 17px "Noto Sans JP", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.save();
+  ctx.translate(box.left - 58, box.top + box.height / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText(yAxisLabel, 0, 0);
+  ctx.restore();
+  ctx.fillText(xAxisLabel, box.left + box.width / 2, box.bottom + 58);
+
   ctx.restore();
 }
 
@@ -678,7 +692,7 @@ function drawDailyTimeseries() {
   const yMax = niceYMax(values, 3);
 
   clearCanvas(ctx, w, h);
-  const box = chartBox(w, h, 58, 32, 24, 62);
+  const box = chartBox(w, h, 96, 42, 34, 92);
   const spanHours = (endMinute - startMinute) / 60;
   const hourStep = spanHours <= 6 ? 1 : spanHours <= 12 ? 2 : 4;
   drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep);
@@ -705,7 +719,7 @@ function drawPersonalAverageComparison() {
   const personal = computePersonalAverage();
   const classAll = state.weekdayAverage.map((r) => ({ minute: r.minute, mets: r.all }));
   const yMax = 6;
-  const box = chartBox(w, h, 58, 32, 24, 62);
+  const box = chartBox(w, h, 96, 42, 34, 92);
   const spanHours = (endMinute - startMinute) / 60;
   const hourStep = spanHours <= 6 ? 1 : spanHours <= 12 ? 2 : 4;
   drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep, { yGridStep: 1, yLabelStep: 2, yDigits: 1 });
@@ -725,7 +739,7 @@ function drawWeekdayMeanChart() {
   const { startMinute, endMinute } = getRangeFrom('weekdayRangeStart', 'weekdayRangeEnd', 8, 20);
   const visible = state.weekdayAverage.filter((r) => r.minute >= startMinute && r.minute <= endMinute);
   const yMax = 4;
-  const box = chartBox(w, h, 58, 32, 24, 62);
+  const box = chartBox(w, h, 96, 42, 34, 92);
   const spanHours = (endMinute - startMinute) / 60;
   const hourStep = spanHours <= 6 ? 1 : spanHours <= 12 ? 2 : 4;
   drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep, { yGridStep: 1, yLabelStep: 1, yDigits: 1 });
