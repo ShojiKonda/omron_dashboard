@@ -3,6 +3,7 @@ const state = {
   processedDays: [],
   heatmapRows: [],
   paramRows: [],
+  personalParamRows: [],
   weekdayAverage: [],
   summaryAverage: {
     aveStep: NaN,
@@ -1140,192 +1141,229 @@ function drawProcessedHeatmap() {
 }
 
 
-const PARAM_METRICS = [
-  ['wear', '装着時間'],
-  ['accumulated_mets', '総METs'],
-  ['mean_mets', '平均METs'],
-  ['sed_total', '座位相当時間'],
-  ['sed_bout', '座位相当Bout数'],
-  ['sed_exp', '座位相当Ex'],
-  ['light_total', '軽強度時間'],
-  ['light_bout', '軽強度Bout数'],
-  ['light_exp', '軽強度Ex'],
-  ['mvpa_total', 'MVPA時間'],
-  ['mvpa_bout', 'MVPA Bout数'],
-  ['mvpa_exp', 'MVPA Ex'],
+
+const PARAM_DASHBOARD_METRICS = [
+  {
+    canvasId: 'paramChartWear',
+    key: 'wear',
+    label: '装着時間',
+    unit: '分',
+    digits: 0,
+    value: (row) => parseNumber(row.wear),
+  },
+  {
+    canvasId: 'paramChartMeanMets',
+    key: 'mean_mets',
+    label: '平均活動強度',
+    unit: 'METs',
+    digits: 2,
+    value: (row) => parseNumber(row.mean_mets),
+  },
+  {
+    canvasId: 'paramChartSedRatio',
+    key: 'sed_ratio',
+    label: '座位行動の割合',
+    unit: '%',
+    digits: 1,
+    value: (row) => ratioPercent(row.sed_total, row.wear),
+  },
+  {
+    canvasId: 'paramChartSedBoutRatio',
+    key: 'sed_bout_ratio',
+    label: '座位行動の回数',
+    unit: '回/時',
+    digits: 2,
+    value: (row) => boutPerHour(row.sed_bout, row.wear),
+  },
+  {
+    canvasId: 'paramChartSedExp',
+    key: 'sed_exp',
+    label: '座位行動の平均継続時間',
+    unit: '分',
+    digits: 1,
+    value: (row) => parseNumber(row.sed_exp),
+  },
+  {
+    canvasId: 'paramChartMvpaRatio',
+    key: 'mvpa_ratio',
+    label: '中高強度活動の割合',
+    unit: '%',
+    digits: 1,
+    value: (row) => ratioPercent(row.mvpa_total, row.wear),
+  },
+  {
+    canvasId: 'paramChartMvpaBoutRatio',
+    key: 'mvpa_bout_ratio',
+    label: '中高強度活動の回数',
+    unit: '回/時',
+    digits: 2,
+    value: (row) => boutPerHour(row.mvpa_bout, row.wear),
+  },
+  {
+    canvasId: 'paramChartMvpaExp',
+    key: 'mvpa_exp',
+    label: '中高強度活動の平均継続時間',
+    unit: '分',
+    digits: 1,
+    value: (row) => parseNumber(row.mvpa_exp),
+  },
 ];
+
+function ratioPercent(numerator, denominator) {
+  const n = parseNumber(numerator);
+  const d = parseNumber(denominator);
+  if (!Number.isFinite(n) || !Number.isFinite(d) || d <= 0) return NaN;
+  return 100 * n / d;
+}
+
+function boutPerHour(bout, wear) {
+  const b = parseNumber(bout);
+  const w = parseNumber(wear);
+  if (!Number.isFinite(b) || !Number.isFinite(w) || w <= 0) return NaN;
+  return b / (w / 60);
+}
 
 function parseParamCsv(text) {
   const rows = parseCsv(text);
   if (!rows.length) return [];
   const header = rows[0].map((h) => String(h).trim());
-  const lower = header.map((h) => h.toLowerCase());
-  const idx = (name) => lower.indexOf(name.toLowerCase());
   return rows.slice(1).map((r, rowIndex) => {
     const item = { _row: rowIndex };
     header.forEach((h, i) => {
       const n = parseNumber(r[i]);
       item[h] = Number.isFinite(n) ? n : r[i];
     });
-    const y = parseNumber(r[idx('year')]);
-    const m = parseNumber(r[idx('month')]);
-    const d = parseNumber(r[idx('day')]);
+    const y = parseNumber(item.year);
+    const m = parseNumber(item.month);
+    const d = parseNumber(item.day);
     if (Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(d)) {
       item._date = `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     }
-    const week = r[idx('week')];
-    item._week = week || (item._date ? getWeekday(item._date) : '');
+    item._week = item.week || (item._date ? getWeekday(item._date) : '');
     return item;
   });
 }
 
-function setupParamMetricSelect() {
-  const select = el('paramMetric');
-  if (!select || select.options.length) return;
-  PARAM_METRICS.forEach(([key, label]) => select.appendChild(new Option(label, key)));
-  select.value = 'mean_mets';
+function metricValues(rows, metric) {
+  return rows.map((row) => metric.value(row)).filter(Number.isFinite);
 }
 
-function paramMetricLabel(key) {
-  return (PARAM_METRICS.find(([k]) => k === key) || [key, key])[1];
-}
-
-function getParamValues(key) {
-  return state.paramRows
-    .map((row) => parseNumber(row[key]))
-    .filter(Number.isFinite);
-}
-
-function updateParamCards() {
-  const key = el('paramMetric')?.value || 'mean_mets';
-  const values = getParamValues(key).sort((a, b) => a - b);
-  const count = state.paramRows.length;
-  if (el('paramCount')) el('paramCount').textContent = count ? `${fmtNumber(count)}件` : '-';
-  if (!values.length) {
-    ['paramMean', 'paramMedian', 'paramRange'].forEach((id) => { if (el(id)) el(id).textContent = '-'; });
-    return;
-  }
-  const digits = key.includes('mets') || key.includes('exp') ? 2 : 0;
-  if (el('paramMean')) el('paramMean').textContent = fmtNumber(mean(values), digits);
-  if (el('paramMedian')) el('paramMedian').textContent = fmtNumber(percentile(values, 0.5), digits);
-  if (el('paramRange')) el('paramRange').textContent = `${fmtNumber(values[0], digits)} - ${fmtNumber(values[values.length - 1], digits)}`;
-  if (el('paramMeanLabel')) el('paramMeanLabel').textContent = paramMetricLabel(key);
-}
-
-function drawParamHistogram() {
-  const canvas = el('paramHistogramCanvas');
+function drawParamDistribution(metric) {
+  const canvas = el(metric.canvasId);
   if (!canvas) return;
   const { ctx, w, h } = getCanvasContext(canvas);
   clearCanvas(ctx, w, h);
-  const key = el('paramMetric')?.value || 'mean_mets';
-  const values = getParamValues(key);
-  if (!values.length) return drawNoData(ctx, w, h, '活動量指標CSVを読み込むと分布を表示します。');
-  const box = chartBox(w, h, 92, 48, 34, 78);
-  const minV = Math.min(...values);
-  const maxV = Math.max(...values);
-  const bins = Math.min(24, Math.max(8, Math.ceil(Math.sqrt(values.length))));
+  const classValues = metricValues(state.paramRows, metric);
+  if (!classValues.length) {
+    return drawNoData(ctx, w, h, '全体指標CSVを読み込むと分布を表示します。');
+  }
+  const personalValues = metricValues(state.personalParamRows, metric);
+  const box = chartBox(w, h, 72, 42, 24, 72);
+  const minV = Math.min(...classValues, ...(personalValues.length ? personalValues : classValues));
+  const maxV = Math.max(...classValues, ...(personalValues.length ? personalValues : classValues));
   const span = Math.max(1e-9, maxV - minV);
+  const bins = Math.min(22, Math.max(8, Math.ceil(Math.sqrt(classValues.length))));
   const counts = Array.from({ length: bins }, () => 0);
-  values.forEach((v) => {
+  classValues.forEach((v) => {
     let bi = Math.floor(((v - minV) / span) * bins);
     if (bi >= bins) bi = bins - 1;
     if (bi < 0) bi = 0;
     counts[bi]++;
   });
-  const yMax = Math.max(1, Math.ceil(Math.max(...counts) * 1.15));
+  const yMax = Math.max(1, Math.ceil(Math.max(...counts) * 1.18));
+  const yStep = Math.max(1, Math.ceil(yMax / 4));
+  ctx.save();
   ctx.strokeStyle = COLORS.grid;
   ctx.fillStyle = COLORS.muted;
-  ctx.font = chartFont(700, 16);
+  ctx.font = chartFont(700, 13);
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
-  const yStep = Math.max(1, Math.ceil(yMax / 5));
   for (let v = 0; v <= yMax; v += yStep) {
     const y = box.bottom - (v / yMax) * box.height;
-    ctx.beginPath(); ctx.moveTo(box.left, y); ctx.lineTo(box.right, y); ctx.stroke();
-    ctx.fillText(fmtNumber(v), box.left - 12, y);
+    ctx.beginPath();
+    ctx.moveTo(box.left, y);
+    ctx.lineTo(box.right, y);
+    ctx.stroke();
+    ctx.fillText(fmtNumber(v), box.left - 10, y);
   }
-  const gap = 4;
-  const barW = (box.width - gap * (bins - 1)) / bins;
+  const gap = 3;
+  const barW = Math.max(2, (box.width - gap * (bins - 1)) / bins);
   counts.forEach((c, i) => {
     const x = box.left + i * (barW + gap);
     const barH = (c / yMax) * box.height;
-    ctx.fillStyle = COLORS.green;
+    ctx.fillStyle = 'rgba(45, 212, 191, 0.86)';
     ctx.fillRect(x, box.bottom - barH, barW, barH);
   });
   ctx.strokeStyle = COLORS.axis;
   ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(box.left, box.bottom); ctx.lineTo(box.right, box.bottom); ctx.moveTo(box.left, box.top); ctx.lineTo(box.left, box.bottom); ctx.stroke();
-  ctx.fillStyle = COLORS.ink;
-  ctx.font = chartFont(800, 17);
-  ctx.textAlign = 'center';
-  ctx.fillText(paramMetricLabel(key), box.left + box.width / 2, box.bottom + 52);
-  ctx.save(); ctx.translate(box.left - 52, box.top + box.height / 2); ctx.rotate(-Math.PI/2); ctx.fillText('件数', 0, 0); ctx.restore();
-  ctx.fillStyle = COLORS.muted;
-  ctx.font = chartFont(700, 14);
-  ctx.textAlign = 'left';
-  ctx.fillText(`${fmtNumber(minV, 1)} - ${fmtNumber(maxV, 1)}`, box.left, box.top - 18);
-}
+  ctx.beginPath();
+  ctx.moveTo(box.left, box.bottom);
+  ctx.lineTo(box.right, box.bottom);
+  ctx.moveTo(box.left, box.top);
+  ctx.lineTo(box.left, box.bottom);
+  ctx.stroke();
 
-function drawParamWeekChart() {
-  const canvas = el('paramWeekCanvas');
-  if (!canvas) return;
-  const { ctx, w, h } = getCanvasContext(canvas);
-  clearCanvas(ctx, w, h);
-  const key = el('paramMetric')?.value || 'mean_mets';
-  if (!state.paramRows.length) return drawNoData(ctx, w, h, '活動量指標CSVを読み込むと曜日別平均を表示します。');
-  const order = ['月', '火', '水', '木', '金', '土', '日'];
-  const rows = order.map((week) => {
-    const values = state.paramRows.filter((r) => String(r._week) === week).map((r) => parseNumber(r[key])).filter(Number.isFinite);
-    return { week, value: mean(values), n: values.length };
-  }).filter((r) => r.n > 0 && Number.isFinite(r.value));
-  if (!rows.length) return drawNoData(ctx, w, h, '曜日情報が見つかりません。');
-  const maxV = Math.max(...rows.map((r) => r.value));
-  const { yMax, yStep } = niceZeroBasedAxis(maxV, 5);
-  const box = chartBox(w, h, 92, 48, 34, 86);
-  ctx.strokeStyle = COLORS.grid;
-  ctx.fillStyle = COLORS.muted;
-  ctx.font = chartFont(700, 16);
-  ctx.textAlign = 'right';
-  ctx.textBaseline = 'middle';
-  for (let v = 0; v <= yMax + 1e-9; v += yStep) {
-    const y = box.bottom - (v / yMax) * box.height;
-    ctx.beginPath(); ctx.moveTo(box.left, y); ctx.lineTo(box.right, y); ctx.stroke();
-    ctx.fillText(fmtNumber(v, key.includes('mets') || key.includes('exp') ? 1 : 0), box.left - 12, y);
+  const xOf = (value) => box.left + ((value - minV) / span) * box.width;
+  if (personalValues.length) {
+    const sorted = [...personalValues].sort((a, b) => a - b);
+    const q1 = percentile(sorted, 0.25);
+    const med = percentile(sorted, 0.5);
+    const q3 = percentile(sorted, 0.75);
+    const y = box.top + 16;
+    const x1 = xOf(q1);
+    const xm = xOf(med);
+    const x3 = xOf(q3);
+    ctx.strokeStyle = COLORS.amber;
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x1, y);
+    ctx.lineTo(x3, y);
+    ctx.stroke();
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x1, y - 7);
+    ctx.lineTo(x1, y + 7);
+    ctx.moveTo(x3, y - 7);
+    ctx.lineTo(x3, y + 7);
+    ctx.stroke();
+    ctx.fillStyle = COLORS.amber;
+    ctx.beginPath();
+    ctx.arc(xm, y, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = COLORS.axis;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
   }
-  const gap = 22;
-  const barW = Math.max(28, (box.width - gap * (rows.length + 1)) / rows.length);
-  rows.forEach((r, i) => {
-    const x = box.left + gap + i * (barW + gap);
-    const barH = (r.value / yMax) * box.height;
-    ctx.fillStyle = weekdayColor(r.week, i);
-    ctx.fillRect(x, box.bottom - barH, barW, barH);
-    ctx.fillStyle = COLORS.ink;
-    ctx.font = chartFont(800, 16);
-    ctx.textAlign = 'center';
-    ctx.fillText(r.week, x + barW / 2, box.bottom + 28);
-    ctx.fillStyle = COLORS.muted;
-    ctx.font = chartFont(700, 13);
-    ctx.fillText(`n=${r.n}`, x + barW / 2, box.bottom + 50);
-  });
-  ctx.strokeStyle = COLORS.axis;
-  ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(box.left, box.bottom); ctx.lineTo(box.right, box.bottom); ctx.moveTo(box.left, box.top); ctx.lineTo(box.left, box.bottom); ctx.stroke();
+
   ctx.fillStyle = COLORS.ink;
-  ctx.font = chartFont(800, 17);
-  ctx.save(); ctx.translate(box.left - 52, box.top + box.height / 2); ctx.rotate(-Math.PI/2); ctx.textAlign = 'center'; ctx.fillText(paramMetricLabel(key), 0, 0); ctx.restore();
+  ctx.font = chartFont(800, 14);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText(`${metric.label} (${metric.unit})`, box.left + box.width / 2, box.bottom + 34);
+  ctx.fillStyle = COLORS.muted;
+  ctx.font = chartFont(700, 12);
+  ctx.fillText(`${fmtNumber(minV, metric.digits)} - ${fmtNumber(maxV, metric.digits)}`, box.left + box.width / 2, box.bottom + 54);
+  ctx.save();
+  ctx.translate(box.left - 48, box.top + box.height / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillStyle = COLORS.ink;
+  ctx.font = chartFont(800, 13);
+  ctx.textAlign = 'center';
+  ctx.fillText('件数', 0, 0);
+  ctx.restore();
+  ctx.restore();
 }
 
 function drawParamCharts() {
-  updateParamCards();
-  drawParamHistogram();
-  drawParamWeekChart();
+  PARAM_DASHBOARD_METRICS.forEach(drawParamDistribution);
 }
 
 async function loadDefaultParamData() {
   try {
-    const text = await fetchText('data/physical_activity_param.csv');
+    const text = await fetchText('data/physical_activity_param_IDremove.csv');
     state.paramRows = parseParamCsv(text);
-    if (el('paramFileName')) el('paramFileName').textContent = `data/physical_activity_param.csv / ${state.paramRows.length}行`;
+    if (el('paramFileName')) el('paramFileName').textContent = `data/physical_activity_param_IDremove.csv / ${state.paramRows.length}行`;
   } catch (err) {
     console.warn('parameter csv could not be loaded', err);
   }
@@ -1336,6 +1374,13 @@ async function handleParamFile(file) {
   const text = await readTextFile(file);
   state.paramRows = parseParamCsv(text);
   if (el('paramFileName')) el('paramFileName').textContent = `${file.name} / ${state.paramRows.length}行`;
+  drawParamCharts();
+}
+
+async function handlePersonalParamFile(file) {
+  const text = await readTextFile(file);
+  state.personalParamRows = parseParamCsv(text);
+  if (el('personalParamFileName')) el('personalParamFileName').textContent = `${file.name} / ${state.personalParamRows.length}行`;
   drawParamCharts();
 }
 
@@ -1549,12 +1594,14 @@ function setupTabs() {
   });
 }
 
-setupParamMetricSelect();
 setupTabs();
-if (el('paramMetric')) el('paramMetric').addEventListener('change', drawParamCharts);
 if (el('paramInput')) el('paramInput').addEventListener('change', () => {
   const input = el('paramInput');
   if (input.files && input.files.length) handleParamFile(input.files[0]);
+});
+if (el('personalParamInput')) el('personalParamInput').addEventListener('change', () => {
+  const input = el('personalParamInput');
+  if (input.files && input.files.length) handlePersonalParamFile(input.files[0]);
 });
 loadDefaultParamData();
 
