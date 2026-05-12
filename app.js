@@ -429,16 +429,20 @@ function makeRelativeActivityPattern(series, valueKey, startMinute, endMinute) {
     minute: row.minute,
     value: Number.isFinite(row[valueKey]) ? Math.max(row[valueKey] - 1.0, 0) : NaN,
   }));
-  const smoothed = movingAverageSeries(active, 'value', 15);
+
+  // Pattern comparison only: use a light 5-minute moving average.
+  // Normalize by the displayed-range maximum, not by the 95th percentile,
+  // so high-activity peaks do not get artificially clipped into a flat 100 plateau.
+  const smoothed = movingAverageSeries(active, 'value', 5);
   const visibleValues = smoothed
     .filter((row) => row.minute >= startMinute && row.minute <= endMinute)
     .map((row) => row.value)
     .filter((v) => Number.isFinite(v) && v > 0);
-  const scale = percentile(visibleValues, 0.95);
-  const denominator = Number.isFinite(scale) && scale > 0 ? scale : Math.max(...visibleValues, 1);
+  const denominator = visibleValues.length ? Math.max(...visibleValues) : 1;
+
   return smoothed.map((row) => ({
     minute: row.minute,
-    level: Number.isFinite(row.value) ? Math.min(100, Math.max(0, 100 * row.value / denominator)) : NaN,
+    level: Number.isFinite(row.value) && denominator > 0 ? Math.max(0, 100 * row.value / denominator) : NaN,
   }));
 }
 
