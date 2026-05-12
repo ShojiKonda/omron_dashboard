@@ -1,6 +1,7 @@
 const state = {
   summaryRows: [],
   processedDays: [],
+  heatmapRows: [],
   weekdayAverage: [],
   summaryAverage: {
     aveStep: NaN,
@@ -115,7 +116,7 @@ function dailyLegendLabel(day) {
   const normalized = day.date || '';
   const dateMatch = String(normalized).match(/20\d{2}-(\d{2})-(\d{2})/);
   if (dateMatch) return `${dateMatch[1]}/${dateMatch[2]}`;
-  return normalized || `Day ${index + 1}`;
+  return normalized || 'Data';
 }
 
 function updateDailyLegend(days, selected) {
@@ -447,6 +448,7 @@ function updateAll() {
   updateDaySelect();
   drawSummaryCharts();
   drawDailyTimeseries();
+  drawActivityHeatmap();
   drawPersonalAverageComparison();
   drawWeekdayMeanChart();
 }
@@ -864,6 +866,244 @@ function drawDailyTimeseries() {
   ctx.textAlign = 'left';
 }
 
+function dayToMinuteArray(day) {
+  const values = Array.from({ length: 1440 }, () => NaN);
+  day.data.forEach((r) => {
+    const minute = Math.round(r.minute);
+    if (minute >= 0 && minute < 1440 && Number.isFinite(r.mets)) values[minute] = r.mets;
+  });
+  return values;
+}
+
+function parseHeatmapMatrix(text, fileName = '') {
+  const rows = parseCsv(text);
+  const parsed = [];
+  rows.forEach((row, idx) => {
+    if (!row.length) return;
+    const numeric = row.map(parseNumber);
+    const numericCount = numeric.filter(Number.isFinite).length;
+    if (numericCount < 60) return;
+
+    let label = `No. ${parsed.length + 1}`;
+    let values;
+    if (row.length >= 1441 && !Number.isFinite(parseNumber(row[0]))) {
+      label = row[0] || label;
+      values = row.slice(1, 1441).map(parseNumber);
+    } else if (row.length >= 1440) {
+      values = row.slice(0, 1440).map(parseNumber);
+    } else {
+      values = row.map(parseNumber);
+      while (values.length < 1440) values.push(NaN);
+    }
+
+    parsed.push({
+      label,
+      source: fileName,
+      values: values.slice(0, 1440),
+      index: idx,
+    });
+  });
+  return parsed;
+}
+
+function getHeatmapRows() {
+  if (state.heatmapRows.length) {
+    return state.heatmapRows.map((row, index) => ({
+      label: row.label || `No. ${index + 1}`,
+      values: row.values,
+      index,
+      source: row.source || '',
+    }));
+  }
+  return state.processedDays.map((day, index) => ({
+    label: dailyLegendLabel(day),
+    values: dayToMinuteArray(day),
+    day,
+    index,
+    source: day.name || '',
+  }));
+}
+
+function heatmapScore(values, sortBy, startMinute = 0, endMinute = 1440) {
+  const visible = values.slice(startMinute, endMinute);
+  const valid = visible.filter((v) => Number.isFinite(v) && v !== -1);
+  if (!valid.length) return -Infinity;
+  if (sortBy === 'mean_mets') return mean(valid);
+  if (sortBy === 'sed_ratio') return valid.filter((v) => v >= 0 && v < 1.5).length / valid.length;
+  if (sortBy === 'wear') return valid.length;
+  // default: mvpa_ratio
+  return valid.filter((v) => v >= 3).length / valid.length;
+}
+
+function heatmapJetColor(value, upper = 3) {
+  if (!Number.isFinite(value) || value === -1) return '#1f2937';
+  const vmax = Number.isFinite(upper) && upper > 0 ? upper : 3;
+  const t = Math.max(0, Math.min(1, value / vmax));
+  const stops = [
+    { t: 0.00, c: [0, 0, 128] },
+    { t: 0.18, c: [0, 64, 255] },
+    { t: 0.38, c: [0, 220, 255] },
+    { t: 0.55, c: [80, 255, 120] },
+    { t: 0.72, c: [255, 230, 0] },
+    { t: 0.88, c: [255, 100, 0] },
+    { t: 1.00, c: [180, 0, 0] },
+  ];
+  let a = stops[0];
+  let b = stops[stops.length - 1];
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (t >= stops[i].t && t <= stops[i + 1].t) {
+      a = stops[i];
+      b = stops[i + 1];
+      break;
+    }
+  }
+  const local = (t - a.t) / Math.max(1e-9, b.t - a.t);
+  const rgb = a.c.map((v, i) => Math.round(v + (b.c[i] - v) * local));
+  return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+}
+
+function getHeatmapTimeRange() {
+  return getRangeFrom('heatmapRangeStart', 'heatmapRangeEnd', 8, 20);
+}
+
+function getHeatmapColorUpper() {
+  const v = parseNumber(el('heatmapVMax')?.value);
+  return Number.isFinite(v) && v > 0 ? v : 3;
+}
+
+function drawActivityHeatmap() {
+  const canvas = el('activityHeatmapCanvas');
+  if (!canvas) return;
+  const { ctx, w, h } = getCanvasContext(canvas);
+  clearCanvas(ctx, w, h);
+
+  const sourceRows = getHeatmapRows();
+  if (!sourceRows.length) {
+    return drawNoData(ctx, w, h, '多人数時系列CSVまたはprocessed CSVを読み込むと、活動パターンカラーマップを表示します。');
+  }
+
+  const sortBy = el('heatmapSort')?.value || 'mean_mets';
+  const { startMinute, endMinute } = getHeatmapTimeRange();
+  const colorUpper = getHeatmapColorUpper();
+  const minutes = Math.max(1, endMinute - startMinute);
+
+  let rows = sourceRows.map((row, index) => ({
+    ...row,
+    index,
+    score: heatmapScore(row.values, sortBy, startMinute, endMinute),
+  }));
+  rows = rows.sort((a, b) => b.score - a.score);
+
+  const labelLeft = 78;
+  const colorbarWidth = 28;
+  const colorbarGap = 18;
+  const box = {
+    left: labelLeft,
+    top: 34,
+    right: w - 86 - colorbarWidth - colorbarGap,
+    bottom: h - 72,
+  };
+  box.width = box.right - box.left;
+  box.height = box.bottom - box.top;
+
+  const nrow = rows.length;
+  const cellH = box.height / Math.max(1, nrow);
+  const cellW = box.width / minutes;
+  const step = Math.max(1, Math.floor(minutes / Math.max(1, box.width)));
+
+  rows.forEach((row, r) => {
+    const y = box.top + r * cellH;
+    for (let m = startMinute; m < endMinute; m += step) {
+      let value = NaN;
+      for (let k = 0; k < step && m + k < endMinute; k++) {
+        const v = row.values[m + k];
+        if (Number.isFinite(v) && v !== -1) {
+          value = Number.isFinite(value) ? Math.max(value, v) : v;
+        }
+      }
+      ctx.fillStyle = heatmapJetColor(Number.isFinite(value) ? Math.min(value, colorUpper) : NaN, colorUpper);
+      const x = box.left + (m - startMinute) * cellW;
+      ctx.fillRect(x, y, Math.ceil(step * cellW) + 0.5, Math.max(1, Math.ceil(cellH) + 0.5));
+    }
+  });
+
+  ctx.strokeStyle = COLORS.axis;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(box.left, box.top, box.width, box.height);
+
+  ctx.fillStyle = COLORS.ink;
+  ctx.font = chartFont(800, 17);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.strokeStyle = COLORS.axis;
+  ctx.lineWidth = 1.5;
+
+  const spanHours = minutes / 60;
+  const hourStep = spanHours <= 6 ? 1 : spanHours <= 12 ? 2 : 4;
+  const startHour = Math.ceil(startMinute / 60);
+  const endHour = Math.floor(endMinute / 60);
+  for (let h = startHour; h <= endHour; h += hourStep) {
+    const minute = h * 60;
+    if (minute < startMinute || minute > endMinute) continue;
+    const x = box.left + ((minute - startMinute) / minutes) * box.width;
+    ctx.beginPath();
+    ctx.moveTo(x, box.bottom);
+    ctx.lineTo(x, box.bottom + 8);
+    ctx.stroke();
+    ctx.fillText(`${String(h).padStart(2, '0')}:00`, x, box.bottom + 28);
+  }
+
+  ctx.save();
+  ctx.translate(box.left - 52, box.top + box.height / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('時系列データ', 0, 0);
+  ctx.restore();
+  ctx.fillText('時刻', box.left + box.width / 2, box.bottom + 58);
+
+  const cX = box.right + colorbarGap;
+  const cY = box.top;
+  const cH = box.height;
+  for (let i = 0; i < cH; i++) {
+    const value = colorUpper * (1 - i / Math.max(1, cH - 1));
+    ctx.fillStyle = heatmapJetColor(value, colorUpper);
+    ctx.fillRect(cX, cY + i, colorbarWidth, 1);
+  }
+  ctx.strokeStyle = COLORS.axis;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(cX, cY, colorbarWidth, cH);
+  ctx.fillStyle = COLORS.ink;
+  ctx.font = chartFont(800, 15);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  [0, colorUpper / 2, colorUpper].forEach((v) => {
+    const y = cY + (1 - v / colorUpper) * cH;
+    ctx.beginPath();
+    ctx.moveTo(cX + colorbarWidth, y);
+    ctx.lineTo(cX + colorbarWidth + 6, y);
+    ctx.stroke();
+    ctx.fillText(v.toFixed(1), cX + colorbarWidth + 10, y);
+  });
+  ctx.save();
+  ctx.translate(cX + colorbarWidth + 52, cY + cH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center';
+  ctx.fillText(`METs（上限${fmtNumber(colorUpper, 1)}）`, 0, 0);
+  ctx.restore();
+
+  ctx.fillStyle = COLORS.muted;
+  ctx.font = chartFont(700, 14);
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  const maxLabels = Math.min(nrow, Math.floor(box.height / 22));
+  if (nrow <= maxLabels) {
+    rows.forEach((row, idx) => {
+      ctx.fillText(row.label || `No. ${idx + 1}`, box.left - 10, box.top + idx * cellH + cellH / 2);
+    });
+  } else {
+    ctx.fillText(`${nrow} rows`, box.left - 10, box.top + 12);
+  }
+}
+
 function drawPersonalAverageComparison() {
   const canvas = el('personalAverageCanvas');
   const { ctx, w, h } = getCanvasContext(canvas);
@@ -957,6 +1197,14 @@ async function handleProcessedFiles(files) {
   updateAll();
 }
 
+async function handleHeatmapMatrixFile(file) {
+  const text = await readTextFile(file);
+  state.heatmapRows = parseHeatmapMatrix(text, file.name);
+  const nameBox = el('heatmapFileName');
+  if (nameBox) nameBox.textContent = `${file.name} / ${state.heatmapRows.length}行`;
+  drawActivityHeatmap();
+}
+
 async function loadDefaultWeekdayAverage() {
   let weekdayOk = false;
   let summaryOk = false;
@@ -995,8 +1243,11 @@ async function loadSample() {
 function clearData() {
   state.summaryRows = [];
   state.processedDays = [];
+  state.heatmapRows = [];
   el('summaryFileName').textContent = '未選択';
   el('processedFileName').textContent = '未選択';
+  const heatmapFileName = el('heatmapFileName');
+  if (heatmapFileName) heatmapFileName.textContent = '未選択';
   updateAll();
 }
 
@@ -1035,5 +1286,13 @@ if (el('avgRangeStart')) el('avgRangeStart').addEventListener('change', drawPers
 if (el('avgRangeEnd')) el('avgRangeEnd').addEventListener('change', drawPersonalAverageComparison);
 if (el('weekdayRangeStart')) el('weekdayRangeStart').addEventListener('change', drawWeekdayMeanChart);
 if (el('weekdayRangeEnd')) el('weekdayRangeEnd').addEventListener('change', drawWeekdayMeanChart);
+if (el('heatmapSort')) el('heatmapSort').addEventListener('change', drawActivityHeatmap);
+if (el('heatmapRangeStart')) el('heatmapRangeStart').addEventListener('change', drawActivityHeatmap);
+if (el('heatmapRangeEnd')) el('heatmapRangeEnd').addEventListener('change', drawActivityHeatmap);
+if (el('heatmapVMax')) el('heatmapVMax').addEventListener('input', drawActivityHeatmap);
+if (el('heatmapInput')) el('heatmapInput').addEventListener('change', () => {
+  const input = el('heatmapInput');
+  if (input.files && input.files.length) handleHeatmapMatrixFile(input.files[0]);
+});
 
 loadDefaultWeekdayAverage().then(updateAll);

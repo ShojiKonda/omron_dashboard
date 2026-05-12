@@ -122,9 +122,49 @@
         <canvas id="dailyTimeseriesCanvas" width="1180" height="460" aria-label="daily METs time series"></canvas>
       </section>
 
-      <section class="panel chart-panel" id="personal-average">
+      <section class="panel chart-panel" id="activity-colormap">
         <div class="section-title">
           <span>4</span>
+          <div>
+            <h2>活動パターンカラーマップ</h2>
+            <p>各日の詳細データを横方向に時刻、縦方向にファイルとして並べ、活動強度の分布を色で表示</p>
+            <p>指定した色上限以上は同じ色で表示し、非装着・欠損は暗色で表示</p>
+          </div>
+        </div>
+        <div class="control-row compact-controls">
+          <label>多人数時系列CSV
+            <input id="heatmapInput" class="inline-file" type="file" accept=".csv,text/csv" />
+            <small id="heatmapFileName">未選択</small>
+          </label>
+          <label>並べ替え
+            <select id="heatmapSort">
+              <option value="mean_mets" selected>平均METsが高い順</option>
+              <option value="mvpa_ratio">MVPA割合が高い順</option>
+              <option value="sed_ratio">座位相当割合が高い順</option>
+              <option value="wear">装着時間が長い順</option>
+            </select>
+          </label>
+          <label>横軸開始
+            <select id="heatmapRangeStart"></select>
+          </label>
+          <label>横軸終了
+            <select id="heatmapRangeEnd"></select>
+          </label>
+          <label>色上限METs
+            <input id="heatmapVMax" class="number-input" type="number" min="0.5" step="0.5" value="3" />
+          </label>
+        </div>
+        <div class="legend">
+          <span>横軸: 時刻（初期表示 08:00〜20:00）</span>
+          <span>縦軸: 多人数時系列データ</span>
+          <span>色: METs（指定した色上限以上は同じ色）</span>
+        </div>
+        <canvas id="activityHeatmapCanvas" width="1180" height="560" aria-label="activity pattern heatmap"></canvas>
+      </section>
+
+      <section class="panel chart-panel" id="personal-average">
+        <div class="section-title">
+          <span>5</span>
           <div>
             <h2>個人と全体の活動パターン比較</h2>
             <p>METsの絶対値ではなく、活動が高まりやすい時間帯のパターンを比較</p>
@@ -141,7 +181,7 @@
 
       <section class="panel chart-panel" id="weekday-average">
         <div class="section-title">
-          <span>5</span>
+          <span>6</span>
           <div>
             <h2>平日平均METs: 月〜金</h2>
             <p>月曜〜金曜の全員平均活動強度パターンを比較</p>
