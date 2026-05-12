@@ -132,15 +132,14 @@
         <div class="section-title">
           <span>5</span>
           <div>
-            <h2>個人と全体の活動パターン比較</h2>
-            <p>METsの絶対値ではなく、活動が高まりやすい時間帯のパターンを比較</p>
-            <p>表示範囲は08:00〜20:00、縦軸は相対活動レベル（0〜100）</p>
+            <h2>個人平均と全体平均の比較</h2>
+            <p>個人平均は日数が少ないためピークが残りやすく、全体平均は多人数の平均のため波形が平滑化されます。強度の大小でなく、活動が高まりやすい時間帯などに注目する</p>
           </div>
         </div>
         <div class="legend">
-          <span><i class="line orange"></i>個人活動パターン</span>
-          <span><i class="line navy"></i>全体活動パターン</span>
-          <span>15分移動平均、95パーセンタイル正規化</span>
+          <span><i class="line orange"></i>個人平均</span>
+          <span><i class="line navy"></i>全体平均</span>
+          <span>METs絶対値で表示</span>
         </div>
         <canvas id="personalAverageCanvas" width="1180" height="460" aria-label="personal average versus weekday average"></canvas>
       </section>

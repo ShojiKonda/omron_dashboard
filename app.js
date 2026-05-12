@@ -1746,32 +1746,38 @@ async function handlePersonalParamFile(file) {
 
 function drawPersonalAverageComparison() {
   const canvas = el('personalAverageCanvas');
+  if (!canvas) return;
   const { ctx, w, h } = getCanvasContext(canvas);
-  if (!state.processedDays.length) return drawNoData(ctx, w, h, 'processed CSVを読み込むと、個人と全体の活動パターンを比較します。');
+  if (!state.processedDays.length || !state.weekdayAverage.length) {
+    return drawNoData(ctx, w, h, 'processed CSVと全体平均データを読み込むと、個人平均と全体平均を比較します。');
+  }
   clearCanvas(ctx, w, h);
 
   const startMinute = FIXED_DISPLAY_START_MINUTE;
   const endMinute = FIXED_DISPLAY_END_MINUTE;
-  const personal = computePersonalAverage();
-  const classAll = state.weekdayAverage.map((r) => ({ minute: r.minute, mets: r.all }));
-  const personalPattern = makeRelativeActivityPattern(personal, 'mets', startMinute, endMinute);
-  const classPattern = makeRelativeActivityPattern(classAll, 'mets', startMinute, endMinute);
+  const personalAverage = computePersonalAverage();
+  const classAverage = state.weekdayAverage.map((r) => ({
+    minute: r.minute,
+    mets: r.all,
+  }));
 
-  const yMax = 100;
+  const yMax = 6;
   const box = chartBox(w, h, 104, 42, 34, 92);
   const spanHours = (endMinute - startMinute) / 60;
   const hourStep = spanHours <= 6 ? 1 : spanHours <= 12 ? 2 : 4;
   drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep, {
     yMin: 0,
-    yGridStep: 20,
-    yLabelStep: 20,
-    yDigits: 0,
-    yAxisLabel: '相対活動レベル',
+    yGridStep: 1,
+    yLabelStep: 1,
+    yDigits: 1,
+    yAxisLabel: 'METs',
     xAxisLabel: '時刻',
   });
 
-  drawLineSeries(ctx, personalPattern, box, yMax, COLORS.orange, startMinute, endMinute, 'level', 2.8, false, 0.95, 0);
-  drawLineSeries(ctx, classPattern, box, yMax, COLORS.navy, startMinute, endMinute, 'level', 4.2, false, 0.82, 0);
+  // 個人平均は先に描画する。全体平均は後から太めに描画して前面に出す。
+  drawLineSeries(ctx, personalAverage, box, yMax, COLORS.orange, startMinute, endMinute, 'mets', 2.6, false, 0.95, 0);
+  drawLineSeries(ctx, classAverage, box, yMax, COLORS.navy, startMinute, endMinute, 'mets', 4.0, false, 0.82, 0);
+
   ctx.fillStyle = COLORS.navy;
   ctx.font = chartFont(800, 19);
   ctx.textAlign = 'left';
