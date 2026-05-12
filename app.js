@@ -1144,6 +1144,14 @@ function drawProcessedHeatmap() {
 
 const PARAM_DASHBOARD_METRICS = [
   {
+    canvasId: 'paramChartMeasurementDays',
+    key: 'measurement_days',
+    label: '計測日数',
+    unit: '日',
+    digits: 0,
+    values: (rows) => measurementDayCountsByPerson(rows),
+  },
+  {
     canvasId: 'paramChartWear',
     key: 'wear',
     label: '装着時間',
@@ -1209,6 +1217,33 @@ const PARAM_DASHBOARD_METRICS = [
   },
 ];
 
+function dateOrderValue(row) {
+  const y = parseNumber(row.year);
+  const m = parseNumber(row.month);
+  const d = parseNumber(row.day);
+  if (!Number.isFinite(m) || !Number.isFinite(d)) return NaN;
+  const year = Number.isFinite(y) ? y : 2000;
+  return year * 10000 + m * 100 + d;
+}
+
+function measurementDayCountsByPerson(rows) {
+  const counts = [];
+  let currentCount = 0;
+  let previousOrder = NaN;
+  rows.forEach((row) => {
+    const order = dateOrderValue(row);
+    if (!Number.isFinite(order)) return;
+    if (currentCount > 0 && Number.isFinite(previousOrder) && order < previousOrder) {
+      counts.push(currentCount);
+      currentCount = 0;
+    }
+    currentCount += 1;
+    previousOrder = order;
+  });
+  if (currentCount > 0) counts.push(currentCount);
+  return counts;
+}
+
 function ratioPercent(numerator, denominator) {
   const n = parseNumber(numerator);
   const d = parseNumber(denominator);
@@ -1245,7 +1280,37 @@ function parseParamCsv(text) {
 }
 
 function metricValues(rows, metric) {
+  if (typeof metric.values === 'function') {
+    return metric.values(rows).filter(Number.isFinite);
+  }
   return rows.map((row) => metric.value(row)).filter(Number.isFinite);
+}
+
+function niceNumber(value) {
+  if (!Number.isFinite(value) || value <= 0) return 1;
+  const magnitude = 10 ** Math.floor(Math.log10(value));
+  const normalized = value / magnitude;
+  let nice;
+  if (normalized <= 1) nice = 1;
+  else if (normalized <= 2) nice = 2;
+  else if (normalized <= 2.5) nice = 2.5;
+  else if (normalized <= 5) nice = 5;
+  else nice = 10;
+  return nice * magnitude;
+}
+
+function linearTicks(minV, maxV, target = 5) {
+  if (!Number.isFinite(minV) || !Number.isFinite(maxV)) return [];
+  if (Math.abs(maxV - minV) < 1e-9) return [minV];
+  const step = niceNumber((maxV - minV) / target);
+  const ticks = [];
+  const start = Math.ceil(minV / step) * step;
+  const end = Math.floor(maxV / step) * step;
+  for (let v = start; v <= end + step * 0.001; v += step) {
+    if (v >= minV - step * 0.001 && v <= maxV + step * 0.001) ticks.push(Number(v.toFixed(10)));
+  }
+  if (ticks.length < 2) return [minV, maxV];
+  return ticks;
 }
 
 function drawParamDistribution(metric) {
@@ -1258,10 +1323,15 @@ function drawParamDistribution(metric) {
     return drawNoData(ctx, w, h, '全体指標CSVを読み込むと分布を表示します。');
   }
   const personalValues = metricValues(state.personalParamRows, metric);
-  const box = chartBox(w, h, 72, 42, 24, 72);
-  const minV = Math.min(...classValues, ...(personalValues.length ? personalValues : classValues));
-  const maxV = Math.max(...classValues, ...(personalValues.length ? personalValues : classValues));
+  let minV = Math.min(...classValues, ...(personalValues.length ? personalValues : classValues));
+  let maxV = Math.max(...classValues, ...(personalValues.length ? personalValues : classValues));
+  if (Math.abs(maxV - minV) < 1e-9) {
+    const pad = Math.max(1, Math.abs(maxV) * 0.05);
+    minV -= pad;
+    maxV += pad;
+  }
   const span = Math.max(1e-9, maxV - minV);
+  const box = chartBox(w, h, 72, 42, 24, 92);
   const bins = Math.min(22, Math.max(8, Math.ceil(Math.sqrt(classValues.length))));
   const counts = Array.from({ length: bins }, () => 0);
   classValues.forEach((v) => {
@@ -1286,6 +1356,7 @@ function drawParamDistribution(metric) {
     ctx.stroke();
     ctx.fillText(fmtNumber(v), box.left - 10, y);
   }
+
   const gap = 3;
   const barW = Math.max(2, (box.width - gap * (bins - 1)) / bins);
   counts.forEach((c, i) => {
@@ -1294,6 +1365,7 @@ function drawParamDistribution(metric) {
     ctx.fillStyle = 'rgba(45, 212, 191, 0.86)';
     ctx.fillRect(x, box.bottom - barH, barW, barH);
   });
+
   ctx.strokeStyle = COLORS.axis;
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -1304,6 +1376,24 @@ function drawParamDistribution(metric) {
   ctx.stroke();
 
   const xOf = (value) => box.left + ((value - minV) / span) * box.width;
+
+  // X-axis numeric ticks
+  ctx.fillStyle = COLORS.ink;
+  ctx.strokeStyle = COLORS.axis;
+  ctx.lineWidth = 1.5;
+  ctx.font = chartFont(700, 12);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  const ticks = linearTicks(minV, maxV, 5);
+  ticks.forEach((tick) => {
+    const x = xOf(tick);
+    ctx.beginPath();
+    ctx.moveTo(x, box.bottom);
+    ctx.lineTo(x, box.bottom + 6);
+    ctx.stroke();
+    ctx.fillText(fmtNumber(tick, metric.digits), x, box.bottom + 10);
+  });
+
   if (personalValues.length) {
     const sorted = [...personalValues].sort((a, b) => a - b);
     const q1 = percentile(sorted, 0.25);
@@ -1340,10 +1430,8 @@ function drawParamDistribution(metric) {
   ctx.font = chartFont(800, 14);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  ctx.fillText(`${metric.label} (${metric.unit})`, box.left + box.width / 2, box.bottom + 34);
-  ctx.fillStyle = COLORS.muted;
-  ctx.font = chartFont(700, 12);
-  ctx.fillText(`${fmtNumber(minV, metric.digits)} - ${fmtNumber(maxV, metric.digits)}`, box.left + box.width / 2, box.bottom + 54);
+  ctx.fillText(`${metric.label} (${metric.unit})`, box.left + box.width / 2, box.bottom + 44);
+
   ctx.save();
   ctx.translate(box.left - 48, box.top + box.height / 2);
   ctx.rotate(-Math.PI / 2);
