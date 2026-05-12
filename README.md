@@ -157,3 +157,17 @@ date,weekday,steps,wear_minutes,exercise_ex
 - グラフ内フォントを Noto Sans JP / Hiragino Sans / Yu Gothic / Meiryo 系に統一。
 - canvas を表示サイズと devicePixelRatio に合わせて再描画し、文字と線のぼやけを軽減。
 - 時系列グラフの縦軸ラベル（METs）・横軸ラベル（時刻）を維持。
+
+
+## v16 update
+
+- 各個人の各日の時系列データでは、縦軸の下限を1.0 METsに固定。
+- 時系列データの横補助線を必ず1.0 METsごとに表示。
+
+## v17 update
+
+- 全グラフの軸・補助線設定を再確認。
+- 各個人の各日の時系列データは縦軸下限を1.0 METs、補助線を1.0 METsごとに固定。
+- 個人平均と全体平均の比較は補助線を1.0 METsごと、数値目盛を2.0 METsごとに固定。
+- 平日平均METs: 月〜金は0.0〜4.0 METs、補助線と数値目盛を1.0 METsごとに固定。
+- 歩数・Exの棒グラフは、グリッド線と数値目盛が必ず同じ値に対応するように修正。

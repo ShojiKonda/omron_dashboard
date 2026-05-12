@@ -295,6 +295,24 @@ function niceYMax(values, minimum = 3, cap = Infinity) {
   return Math.min(cap, Math.ceil(capped / magnitude) * magnitude);
 }
 
+function niceTickStep(maxValue, targetTicks = 5) {
+  const value = Number.isFinite(maxValue) && maxValue > 0 ? maxValue : 1;
+  const rawStep = value / Math.max(1, targetTicks);
+  const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+  const candidates = [1, 2, 2.5, 5, 10].map((m) => m * magnitude);
+  return candidates.find((step) => step >= rawStep) || 10 * magnitude;
+}
+
+function niceZeroBasedAxis(maxValue, targetTicks = 5) {
+  const step = niceTickStep(maxValue, targetTicks);
+  const yMax = Math.max(step, Math.ceil(maxValue / step) * step);
+  return { yMax, yStep: step };
+}
+
+function integerMetsYMax(values, minimum = 3) {
+  return Math.max(minimum, Math.ceil(niceYMax(values, minimum)));
+}
+
 function computeDayStats(data) {
   const valid = data.filter((r) => r.mets > 0);
   return {
@@ -470,11 +488,14 @@ function drawNoData(ctx, w, h, text) {
 
 
 function drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep = 4, options = {}) {
-  const yGridStep = Number.isFinite(options.yGridStep) ? options.yGridStep : null;
+  const yMin = Number.isFinite(options.yMin) ? options.yMin : 0;
+  const defaultGridStep = options.strictIntegerGrid ? 1 : null;
+  const yGridStep = Number.isFinite(options.yGridStep) ? options.yGridStep : defaultGridStep;
   const yLabelStep = Number.isFinite(options.yLabelStep) ? options.yLabelStep : yGridStep;
   const yDigits = Number.isFinite(options.yDigits) ? options.yDigits : (yMax <= 6 ? 1 : 0);
   const yAxisLabel = options.yAxisLabel || 'METs';
   const xAxisLabel = options.xAxisLabel || '時刻';
+  const yRange = Math.max(1e-9, yMax - yMin);
   const shouldLabel = (value) => {
     if (!Number.isFinite(yLabelStep) || yLabelStep <= 0) return true;
     return Math.abs(value / yLabelStep - Math.round(value / yLabelStep)) < 1e-6;
@@ -490,13 +511,14 @@ function drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep = 4, opti
 
   const yTicks = [];
   if (yGridStep && yGridStep > 0) {
-    for (let v = 0; v <= yMax + 1e-6; v += yGridStep) yTicks.push(Number(v.toFixed(6)));
+    const startTick = Math.ceil(yMin / yGridStep) * yGridStep;
+    for (let v = startTick; v <= yMax + 1e-6; v += yGridStep) yTicks.push(Number(v.toFixed(6)));
   } else {
-    for (let i = 0; i <= 5; i++) yTicks.push((yMax / 5) * i);
+    for (let i = 0; i <= 5; i++) yTicks.push(yMin + (yRange / 5) * i);
   }
 
   yTicks.forEach((v) => {
-    const y = box.bottom - (v / yMax) * box.height;
+    const y = box.bottom - ((v - yMin) / yRange) * box.height;
     ctx.beginPath();
     ctx.moveTo(box.left, y);
     ctx.lineTo(box.right, y);
@@ -544,7 +566,7 @@ function drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep = 4, opti
 }
 
 
-function drawLineSeries(ctx, series, box, yMax, color, startMinute = 0, endMinute = 1440, valueKey = 'mets', width = 2.4, dashed = false, alpha = 1) {
+function drawLineSeries(ctx, series, box, yMax, color, startMinute = 0, endMinute = 1440, valueKey = 'mets', width = 2.4, dashed = false, alpha = 1, yMin = 0) {
   const points = [];
   series.forEach((r) => {
     if (r.minute < startMinute || r.minute > endMinute) return;
@@ -554,7 +576,9 @@ function drawLineSeries(ctx, series, box, yMax, color, startMinute = 0, endMinut
       return;
     }
     const x = box.left + ((r.minute - startMinute) / (endMinute - startMinute)) * box.width;
-    const y = box.bottom - Math.min(v, yMax) / yMax * box.height;
+    const yRange = Math.max(1e-9, yMax - yMin);
+    const yValue = Math.max(yMin, Math.min(v, yMax));
+    const y = box.bottom - ((yValue - yMin) / yRange) * box.height;
     points.push({ x, y });
   });
 
@@ -614,7 +638,7 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenc
   const box = chartBox(w, h, 112, 74, 42, 106);
   const values = rows.map((r) => Number.isFinite(r[valueKey]) ? r[valueKey] : 0);
   const maxCandidate = Math.max(...values, Number.isFinite(referenceValue) ? referenceValue : 0);
-  const yMax = niceYMax([maxCandidate], 1);
+  const { yMax, yStep } = niceZeroBasedAxis(maxCandidate, 5);
 
   ctx.save();
   ctx.strokeStyle = COLORS.grid;
@@ -622,9 +646,8 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenc
   ctx.font = chartFont(700, 16);
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
-  for (let i = 0; i <= 5; i++) {
-    const y = box.bottom - (i / 5) * box.height;
-    const v = (yMax * i) / 5;
+  for (let v = 0; v <= yMax + 1e-9; v += yStep) {
+    const y = box.bottom - (v / yMax) * box.height;
     ctx.beginPath();
     ctx.moveTo(box.left, y);
     ctx.lineTo(box.right, y);
@@ -715,19 +738,19 @@ function drawDailyTimeseries() {
   const values = days.flatMap((day) => day.data
     .filter((r) => r.minute >= startMinute && r.minute <= endMinute)
     .map((r) => r.mets));
-  const yMax = niceYMax(values, 3);
+  const yMax = integerMetsYMax(values, 3);
 
   clearCanvas(ctx, w, h);
   const box = chartBox(w, h, 96, 42, 34, 92);
   const spanHours = (endMinute - startMinute) / 60;
   const hourStep = spanHours <= 6 ? 1 : spanHours <= 12 ? 2 : 4;
-  drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep);
+  drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep, { yMin: 1, yGridStep: 1, yLabelStep: 1, yDigits: 1, strictIntegerGrid: true });
 
   days.forEach((day, idx) => {
     const color = selected === '__all__' ? weekdayColor(day.weekday, idx) : COLORS.orange;
     const width = selected === '__all__' ? 2.6 : 3.0;
     const alpha = selected === '__all__' ? 0.92 : 1;
-    drawLineSeries(ctx, day.data, box, yMax, color, startMinute, endMinute, 'mets', width, false, alpha);
+    drawLineSeries(ctx, day.data, box, yMax, color, startMinute, endMinute, 'mets', width, false, alpha, 1);
   });
 
   ctx.fillStyle = COLORS.navy;
@@ -747,7 +770,7 @@ function drawPersonalAverageComparison() {
   const box = chartBox(w, h, 96, 42, 34, 92);
   const spanHours = (endMinute - startMinute) / 60;
   const hourStep = spanHours <= 6 ? 1 : spanHours <= 12 ? 2 : 4;
-  drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep, { yGridStep: 1, yLabelStep: 2, yDigits: 1 });
+  drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep, { yGridStep: 1, yLabelStep: 2, yDigits: 1, strictIntegerGrid: true });
   drawLineSeries(ctx, personal, box, yMax, COLORS.orange, startMinute, endMinute, 'mets', 2.8, false, 1);
   drawLineSeries(ctx, classAll, box, yMax, COLORS.navy, startMinute, endMinute, 'mets', 5.2, false, 0.74);
   ctx.fillStyle = COLORS.navy;
@@ -766,7 +789,7 @@ function drawWeekdayMeanChart() {
   const box = chartBox(w, h, 96, 42, 34, 92);
   const spanHours = (endMinute - startMinute) / 60;
   const hourStep = spanHours <= 6 ? 1 : spanHours <= 12 ? 2 : 4;
-  drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep, { yGridStep: 1, yLabelStep: 1, yDigits: 1 });
+  drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep, { yGridStep: 1, yLabelStep: 1, yDigits: 1, strictIntegerGrid: true });
   [
     { key: 'Mon', color: COLORS.blue },
     { key: 'Tue', color: COLORS.green },
