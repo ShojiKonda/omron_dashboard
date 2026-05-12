@@ -561,3 +561,14 @@ textarea,
 canvas {
   image-rendering: auto;
 }
+
+/* v22: fixed graph range note */
+.fixed-range-note {
+  align-self: end;
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  color: var(--muted);
+  font-weight: 900;
+  padding: 0 2px;
+}

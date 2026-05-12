@@ -109,12 +109,7 @@
           <label>表示する日
             <select id="daySelect"></select>
           </label>
-          <label>横軸開始
-            <select id="rangeStart"></select>
-          </label>
-          <label>横軸終了
-            <select id="rangeEnd"></select>
-          </label>
+          <span class="fixed-range-note">表示範囲: 08:00〜20:00</span>
         </div>
         <div class="legend" id="dailyLegend">
           <span>CSVを読み込むと、日付ごとの凡例を表示します。</span>
@@ -126,22 +121,15 @@
         <div class="section-title">
           <span>4</span>
           <div>
-            <h2>個人平均と全体平均の比較</h2>
-            <p>各個人の平均活動強度パターンと、全員の全平日平均を比較</p>
-            <p>横軸の表示範囲を選択可能</p>
+            <h2>個人と全体の活動パターン比較</h2>
+            <p>METsの絶対値ではなく、活動が高まりやすい時間帯のパターンを比較</p>
+            <p>表示範囲は08:00〜20:00、縦軸は相対活動レベル（0〜100）</p>
           </div>
         </div>
-        <div class="control-row compact-controls">
-          <label>横軸開始
-            <select id="avgRangeStart"></select>
-          </label>
-          <label>横軸終了
-            <select id="avgRangeEnd"></select>
-          </label>
-        </div>
         <div class="legend">
-          <span><i class="line orange"></i>個人平均</span>
-          <span><i class="line navy"></i>全平日平均</span>
+          <span><i class="line orange"></i>個人活動パターン</span>
+          <span><i class="line navy"></i>全体活動パターン</span>
+          <span>15分移動平均、95パーセンタイル正規化</span>
         </div>
         <canvas id="personalAverageCanvas" width="1180" height="460" aria-label="personal average versus weekday average"></canvas>
       </section>
@@ -152,16 +140,8 @@
           <div>
             <h2>平日平均METs: 月〜金</h2>
             <p>月曜〜金曜の全員平均活動強度パターンを比較</p>
-            <p>横軸の表示範囲を選択可能</p>
+            <p>表示範囲は08:00〜20:00</p>
           </div>
-        </div>
-        <div class="control-row compact-controls">
-          <label>横軸開始
-            <select id="weekdayRangeStart"></select>
-          </label>
-          <label>横軸終了
-            <select id="weekdayRangeEnd"></select>
-          </label>
         </div>
         <div class="legend">
           <span><i class="line monday"></i>月曜</span>

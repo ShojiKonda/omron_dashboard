@@ -32,6 +32,10 @@ const COLORS = {
 const CHART_FONT_FAMILY = '"Noto Sans JP", "Hiragino Sans", "Yu Gothic", "Yu Gothic UI", Meiryo, sans-serif';
 const chartFont = (weight, size) => `${weight} ${size}px ${CHART_FONT_FAMILY}`;
 
+const FIXED_DISPLAY_START_MINUTE = 8 * 60;
+const FIXED_DISPLAY_END_MINUTE = 20 * 60;
+
+
 function fmtNumber(value, digits = 0) {
   if (value === null || value === undefined || Number.isNaN(value)) return '-';
   return Number(value).toLocaleString('ja-JP', { maximumFractionDigits: digits, minimumFractionDigits: digits });
@@ -393,6 +397,51 @@ function computePersonalAverage() {
   }));
 }
 
+
+function percentile(values, p) {
+  const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+  if (!sorted.length) return NaN;
+  const index = (sorted.length - 1) * p;
+  const lower = Math.floor(index);
+  const upper = Math.ceil(index);
+  if (lower === upper) return sorted[lower];
+  const weight = index - lower;
+  return sorted[lower] * (1 - weight) + sorted[upper] * weight;
+}
+
+function movingAverageSeries(series, valueKey = 'value', windowMinutes = 15) {
+  const half = Math.floor(windowMinutes / 2);
+  return series.map((row, i) => {
+    const values = [];
+    for (let j = Math.max(0, i - half); j <= Math.min(series.length - 1, i + half); j++) {
+      const v = series[j][valueKey];
+      if (Number.isFinite(v)) values.push(v);
+    }
+    return {
+      ...row,
+      [valueKey]: values.length ? values.reduce((a, b) => a + b, 0) / values.length : NaN,
+    };
+  });
+}
+
+function makeRelativeActivityPattern(series, valueKey, startMinute, endMinute) {
+  const active = series.map((row) => ({
+    minute: row.minute,
+    value: Number.isFinite(row[valueKey]) ? Math.max(row[valueKey] - 1.0, 0) : NaN,
+  }));
+  const smoothed = movingAverageSeries(active, 'value', 15);
+  const visibleValues = smoothed
+    .filter((row) => row.minute >= startMinute && row.minute <= endMinute)
+    .map((row) => row.value)
+    .filter((v) => Number.isFinite(v) && v > 0);
+  const scale = percentile(visibleValues, 0.95);
+  const denominator = Number.isFinite(scale) && scale > 0 ? scale : Math.max(...visibleValues, 1);
+  return smoothed.map((row) => ({
+    minute: row.minute,
+    level: Number.isFinite(row.value) ? Math.min(100, Math.max(0, 100 * row.value / denominator)) : NaN,
+  }));
+}
+
 function updateAll() {
   updateCards();
   updateDaySelect();
@@ -468,8 +517,8 @@ function fillRangeSelects(startId, endId, defaultStart = 0, defaultEnd = 24) {
 }
 
 function setupRangeControls() {
-  fillRangeSelects('rangeStart', 'rangeEnd', 0, 24);
-  fillRangeSelects('avgRangeStart', 'avgRangeEnd', 0, 24);
+  fillRangeSelects('rangeStart', 'rangeEnd', 8, 20);
+  fillRangeSelects('avgRangeStart', 'avgRangeEnd', 8, 20);
   fillRangeSelects('weekdayRangeStart', 'weekdayRangeEnd', 8, 20);
 }
 
@@ -490,7 +539,7 @@ function getRangeFrom(startId, endId, defaultStart = 0, defaultEnd = 24) {
 }
 
 function getTimeRange() {
-  return getRangeFrom('rangeStart', 'rangeEnd', 0, 24);
+  return { startMinute: FIXED_DISPLAY_START_MINUTE, endMinute: FIXED_DISPLAY_END_MINUTE };
 }
 
 function getCanvasContext(canvas) {
@@ -627,7 +676,7 @@ function drawLineSeries(ctx, series, box, yMax, color, startMinute = 0, endMinut
   series.forEach((r) => {
     if (r.minute < startMinute || r.minute > endMinute) return;
     const v = r[valueKey];
-    if (!Number.isFinite(v) || v <= 0) {
+    if (!Number.isFinite(v) || (valueKey === 'mets' && v <= 0)) {
       points.push(null);
       return;
     }
@@ -818,18 +867,31 @@ function drawDailyTimeseries() {
 function drawPersonalAverageComparison() {
   const canvas = el('personalAverageCanvas');
   const { ctx, w, h } = getCanvasContext(canvas);
-  if (!state.processedDays.length) return drawNoData(ctx, w, h, 'processed CSVを読み込むと、個人平均と全平日平均を比較します。');
+  if (!state.processedDays.length) return drawNoData(ctx, w, h, 'processed CSVを読み込むと、個人と全体の活動パターンを比較します。');
   clearCanvas(ctx, w, h);
-  const { startMinute, endMinute } = getRangeFrom('avgRangeStart', 'avgRangeEnd', 0, 24);
+
+  const startMinute = FIXED_DISPLAY_START_MINUTE;
+  const endMinute = FIXED_DISPLAY_END_MINUTE;
   const personal = computePersonalAverage();
   const classAll = state.weekdayAverage.map((r) => ({ minute: r.minute, mets: r.all }));
-  const yMax = 6;
-  const box = chartBox(w, h, 96, 42, 34, 92);
+  const personalPattern = makeRelativeActivityPattern(personal, 'mets', startMinute, endMinute);
+  const classPattern = makeRelativeActivityPattern(classAll, 'mets', startMinute, endMinute);
+
+  const yMax = 100;
+  const box = chartBox(w, h, 104, 42, 34, 92);
   const spanHours = (endMinute - startMinute) / 60;
   const hourStep = spanHours <= 6 ? 1 : spanHours <= 12 ? 2 : 4;
-  drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep, { yGridStep: 1, yLabelStep: 1, yDigits: 1, strictIntegerGrid: true });
-  drawLineSeries(ctx, personal, box, yMax, COLORS.orange, startMinute, endMinute, 'mets', 2.8, false, 1);
-  drawLineSeries(ctx, classAll, box, yMax, COLORS.navy, startMinute, endMinute, 'mets', 5.2, false, 0.74);
+  drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep, {
+    yMin: 0,
+    yGridStep: 20,
+    yLabelStep: 20,
+    yDigits: 0,
+    yAxisLabel: '相対活動レベル',
+    xAxisLabel: '時刻',
+  });
+
+  drawLineSeries(ctx, personalPattern, box, yMax, COLORS.orange, startMinute, endMinute, 'level', 2.8, false, 0.95, 0);
+  drawLineSeries(ctx, classPattern, box, yMax, COLORS.navy, startMinute, endMinute, 'level', 4.2, false, 0.82, 0);
   ctx.fillStyle = COLORS.navy;
   ctx.font = chartFont(800, 19);
   ctx.textAlign = 'left';
@@ -840,7 +902,8 @@ function drawWeekdayMeanChart() {
   const { ctx, w, h } = getCanvasContext(canvas);
   if (!state.weekdayAverage.length) return drawNoData(ctx, w, h, 'data/weekday_mean.csvを読み込むと、月〜金の平均を表示します。');
   clearCanvas(ctx, w, h);
-  const { startMinute, endMinute } = getRangeFrom('weekdayRangeStart', 'weekdayRangeEnd', 8, 20);
+  const startMinute = FIXED_DISPLAY_START_MINUTE;
+  const endMinute = FIXED_DISPLAY_END_MINUTE;
   const visible = state.weekdayAverage.filter((r) => r.minute >= startMinute && r.minute <= endMinute);
   const yMax = 4;
   const box = chartBox(w, h, 96, 42, 34, 92);
@@ -966,11 +1029,11 @@ if (sampleBtn) sampleBtn.addEventListener('click', loadSample);
 const clearBtn = el('clearBtn');
 if (clearBtn) clearBtn.addEventListener('click', clearData);
 el('daySelect').addEventListener('change', drawDailyTimeseries);
-el('rangeStart').addEventListener('change', drawDailyTimeseries);
-el('rangeEnd').addEventListener('change', drawDailyTimeseries);
-el('avgRangeStart').addEventListener('change', drawPersonalAverageComparison);
-el('avgRangeEnd').addEventListener('change', drawPersonalAverageComparison);
-el('weekdayRangeStart').addEventListener('change', drawWeekdayMeanChart);
-el('weekdayRangeEnd').addEventListener('change', drawWeekdayMeanChart);
+if (el('rangeStart')) el('rangeStart').addEventListener('change', drawDailyTimeseries);
+if (el('rangeEnd')) el('rangeEnd').addEventListener('change', drawDailyTimeseries);
+if (el('avgRangeStart')) el('avgRangeStart').addEventListener('change', drawPersonalAverageComparison);
+if (el('avgRangeEnd')) el('avgRangeEnd').addEventListener('change', drawPersonalAverageComparison);
+if (el('weekdayRangeStart')) el('weekdayRangeStart').addEventListener('change', drawWeekdayMeanChart);
+if (el('weekdayRangeEnd')) el('weekdayRangeEnd').addEventListener('change', drawWeekdayMeanChart);
 
 loadDefaultWeekdayAverage().then(updateAll);
