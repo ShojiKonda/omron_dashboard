@@ -340,10 +340,15 @@
 
           <article class="mini-chart summary-wide practice-subchart">
             <h3>多人数時系列CSVのカラーマップ</h3>
-            <p class="chart-note">匿名化した全員分の10秒METs時系列を平均METsが高い順に並べます。個人データをアップロードすると、平均METs順位上の位置を黄色線で示します。</p>
+            <p class="chart-note">匿名化した全員分の10秒METs時系列を平均METsが高い順に並べます。個人データをアップロードすると、平均METs順位上の位置を左側の矢印で示します。</p>
+            <div class="control-row compact-controls">
+              <label>色上限METs
+                <input id="practiceHeatmapVMax" class="number-input" type="number" min="0.5" step="0.5" value="3" />
+              </label>
+            </div>
             <div class="legend">
               <span>並べ替え: 平均METsが高い順</span>
-              <span>色: METs（上限3.0）</span>
+              <span>色: METs（指定した色上限以上は同じ色）</span>
               <span><i class="practice-rank-marker"></i>個人データの位置</span>
             </div>
             <canvas id="practiceHeatmapCanvas" width="1180" height="560" aria-label="exercise intensity heatmap"></canvas>

@@ -2165,18 +2165,25 @@ function drawPracticeDensity() {
   const maxValue = maxFiniteValue(classValues.concat(personalValues), 5);
   const xMax = Math.max(5, Math.ceil(maxValue));
   const classDensity = smoothHistogramDensity(classValues, xMax, 90);
+  const classDensities = practiceSummaryRowsAsPoints(summary)
+    .map((row) => smoothHistogramDensity(practiceValuesFromPoints(row), xMax, 90))
+    .filter((density) => density.length);
   const personalDensity = smoothHistogramDensity(personalValues, xMax, 90);
   const yMax = Math.max(
     0.1,
     Math.ceil(Math.max(
       ...classDensity.map((p) => p.density),
+      ...classDensities.flatMap((density) => density.map((p) => p.density)),
       ...(personalDensity.length ? personalDensity.map((p) => p.density) : [0])
     ) * 10) / 10
   );
 
   const box = chartBox(w, h, 92, 44, 42, 88);
   drawDensityGrid(ctx, box, xMax, yMax);
-  drawDensityLine(ctx, classDensity, box, xMax, yMax, 'rgba(203, 213, 225, 0.75)', 2.4, 0.9);
+  classDensities.forEach((density) => {
+    drawDensityLine(ctx, density, box, xMax, yMax, 'rgba(203, 213, 225, 0.22)', 1.3, 0.85);
+  });
+  drawDensityLine(ctx, classDensity, box, xMax, yMax, 'rgba(203, 213, 225, 0.88)', 2.4, 0.9);
   if (personalValues.length) {
     drawDensityLine(ctx, personalDensity, box, xMax, yMax, COLORS.amber, 3.2, 1);
   }
@@ -2195,7 +2202,8 @@ function drawPracticeHeatmap() {
 
   const { startSecond, endSecond } = getPracticeBounds(summary);
   const timeSpan = Math.max(1, endSecond - startSecond);
-  const colorUpper = 3;
+  const requestedColorUpper = parseNumber(el('practiceHeatmapVMax')?.value);
+  const colorUpper = Number.isFinite(requestedColorUpper) && requestedColorUpper > 0 ? requestedColorUpper : 3;
   let rows = summary.rows.map((row, index) => {
     const values = summary.times.map((second, i) => ({ second, mets: row.values[i] }));
     const score = practiceMeanFromValues(values.map((p) => p.mets));
@@ -2243,25 +2251,14 @@ function drawPracticeHeatmap() {
   const personalScore = practiceMeanFromValues(personalPoints.map((p) => p.mets));
   if (Number.isFinite(personalScore)) {
     const rank = rows.filter((row) => row.score > personalScore).length;
-    const y = box.top + Math.min(Math.max(rank, 0), nrow) * cellH;
+    const markerIndex = Math.min(Math.max(rank, 0), Math.max(0, nrow - 1));
+    const y = box.top + (markerIndex + 0.5) * cellH;
     ctx.save();
-    ctx.strokeStyle = COLORS.amber;
     ctx.fillStyle = COLORS.amber;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(box.left, y);
-    ctx.lineTo(box.right, y);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(box.left - 10, y);
-    ctx.lineTo(box.left - 2, y - 6);
-    ctx.lineTo(box.left - 2, y + 6);
-    ctx.closePath();
-    ctx.fill();
-    ctx.font = chartFont(800, 14);
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'bottom';
-    ctx.fillText('個人位置', box.left, Math.max(box.top + 14, y - 4));
+    ctx.font = chartFont(900, Math.max(18, Math.min(28, cellH * 1.8)));
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('→', box.left - 10, y);
     ctx.restore();
   }
 
@@ -2320,7 +2317,7 @@ function drawPracticeHeatmap() {
   ctx.translate(cX + colorbarWidth + 52, cY + cH / 2);
   ctx.rotate(-Math.PI / 2);
   ctx.textAlign = 'center';
-  ctx.fillText('METs（上限3.0）', 0, 0);
+  ctx.fillText(`METs（上限${colorUpper.toFixed(1)}）`, 0, 0);
   ctx.restore();
   ctx.restore();
 
@@ -2512,6 +2509,7 @@ if (el('practicePersonalInput')) el('practicePersonalInput').addEventListener('c
   const input = el('practicePersonalInput');
   if (input.files && input.files.length) handlePracticePersonalFile(input.files[0]);
 });
+if (el('practiceHeatmapVMax')) el('practiceHeatmapVMax').addEventListener('input', drawPracticeHeatmap);
 loadDefaultParamData();
 loadDefaultPracticeSummary();
 
