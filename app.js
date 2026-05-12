@@ -770,7 +770,7 @@ function drawPersonalAverageComparison() {
   const box = chartBox(w, h, 96, 42, 34, 92);
   const spanHours = (endMinute - startMinute) / 60;
   const hourStep = spanHours <= 6 ? 1 : spanHours <= 12 ? 2 : 4;
-  drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep, { yGridStep: 1, yLabelStep: 2, yDigits: 1, strictIntegerGrid: true });
+  drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep, { yGridStep: 1, yLabelStep: 1, yDigits: 1, strictIntegerGrid: true });
   drawLineSeries(ctx, personal, box, yMax, COLORS.orange, startMinute, endMinute, 'mets', 2.8, false, 1);
   drawLineSeries(ctx, classAll, box, yMax, COLORS.navy, startMinute, endMinute, 'mets', 5.2, false, 0.74);
   ctx.fillStyle = COLORS.navy;
