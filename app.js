@@ -931,18 +931,22 @@ function getProcessedHeatmapRows() {
   }));
 }
 
+function isValidHeatmapValue(value) {
+  return Number.isFinite(value) && value > 0 && value !== -1;
+}
+
 function heatmapScore(values, sortBy, startMinute = 0, endMinute = 1440) {
   const visible = values.slice(startMinute, endMinute);
-  const valid = visible.filter((v) => Number.isFinite(v) && v !== -1);
+  const valid = visible.filter(isValidHeatmapValue);
   if (!valid.length) return -Infinity;
   if (sortBy === 'mean_mets') return mean(valid);
-  if (sortBy === 'sed_ratio') return valid.filter((v) => v >= 0 && v < 1.5).length / valid.length;
+  if (sortBy === 'sed_ratio') return valid.filter((v) => v < 1.5).length / valid.length;
   // default: mvpa_ratio
   return valid.filter((v) => v >= 3).length / valid.length;
 }
 
 function heatmapJetColor(value, upper = 3) {
-  if (!Number.isFinite(value) || value === -1) return '#1f2937';
+  if (!isValidHeatmapValue(value)) return '#1f2937';
   const vmax = Number.isFinite(upper) && upper > 0 ? upper : 3;
   const t = Math.max(0, Math.min(1, value / vmax));
   const stops = [
@@ -1027,7 +1031,7 @@ function drawHeatmapCanvas(canvasId, sourceRows, emptyText, yAxisLabel = '時系
       let value = NaN;
       for (let k = 0; k < step && m + k < endMinute; k++) {
         const v = row.values[m + k];
-        if (Number.isFinite(v) && v !== -1) {
+        if (isValidHeatmapValue(v)) {
           value = Number.isFinite(value) ? Math.max(value, v) : v;
         }
       }
