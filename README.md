@@ -191,3 +191,9 @@ date,weekday,steps,wear_minutes,exercise_ex
 - 各個人の各日の時系列データは、縦軸下限を0.0 METsに維持。
 - 横補助線は必ず1.0 METsごとに表示。
 - 縦軸上限は、表示範囲内の最大METs値に8%の余白を加え、次の整数に切り上げる方式に変更。過剰な丸め上げ（例: 13.7 -> 20.0）を避ける。
+
+
+## v21 update
+
+- 各個人の各日の時系列データの凡例を、固定の『個人データ』ではなく、読み込んだ processed CSV の日付表示に変更。
+- ファイル名内の `_processed_YYYYMMDD.csv` または `processed_YYYY-MM-DD.csv` から MM/DD を抽出し、各折れ線の凡例として表示。

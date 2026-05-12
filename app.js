@@ -82,6 +82,56 @@ function weekdayColor(weekday, fallbackIndex = 0) {
   return map[weekday] || fallback[fallbackIndex % fallback.length];
 }
 
+function dailyLineColor(selected, day, index) {
+  if (selected !== '__all__') return COLORS.orange;
+  return weekdayColor(day.weekday, index);
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function dailyLegendLabel(day) {
+  const source = day.name || day.date || '';
+  const compactMatches = [...String(source).matchAll(/(20\d{2})(\d{2})(\d{2})/g)];
+  if (compactMatches.length) {
+    const m = compactMatches[compactMatches.length - 1];
+    return `${m[2]}/${m[3]}`;
+  }
+  const hyphenMatches = [...String(source).matchAll(/(20\d{2})[-_](\d{2})[-_](\d{2})/g)];
+  if (hyphenMatches.length) {
+    const m = hyphenMatches[hyphenMatches.length - 1];
+    return `${m[2]}/${m[3]}`;
+  }
+  const normalized = day.date || '';
+  const dateMatch = String(normalized).match(/20\d{2}-(\d{2})-(\d{2})/);
+  if (dateMatch) return `${dateMatch[1]}/${dateMatch[2]}`;
+  return normalized || `Day ${index + 1}`;
+}
+
+function updateDailyLegend(days, selected) {
+  const legend = el('dailyLegend');
+  if (!legend) return;
+  if (!days.length) {
+    legend.innerHTML = '<span>CSVを読み込むと、日付ごとの凡例を表示します。</span>';
+    return;
+  }
+  const items = days.map((day, idx) => {
+    const color = dailyLineColor(selected, day, idx);
+    const label = selected === '__all__'
+      ? dailyLegendLabel(day)
+      : `${dailyLegendLabel(day)} (${day.weekday || '-'})`;
+    return `<span><i class="line" style="background:${color}"></i>${escapeHtml(label)}</span>`;
+  });
+  items.push('<span>縦軸: 表示範囲に合わせて自動調整</span>');
+  legend.innerHTML = items.join('');
+}
+
 function splitCsvLine(line) {
   const cells = [];
   let current = '';
@@ -741,6 +791,7 @@ function drawDailyTimeseries() {
   const days = selected === '__all__'
     ? state.processedDays
     : state.processedDays.filter((d) => d.id === selected);
+  updateDailyLegend(days, selected);
   const values = days.flatMap((day) => day.data
     .filter((r) => r.minute >= startMinute && r.minute <= endMinute)
     .map((r) => r.mets));
@@ -753,7 +804,7 @@ function drawDailyTimeseries() {
   drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep, { yMin: 0, yGridStep: 1, yLabelStep: 1, yDigits: 1, strictIntegerGrid: true });
 
   days.forEach((day, idx) => {
-    const color = selected === '__all__' ? weekdayColor(day.weekday, idx) : COLORS.orange;
+    const color = dailyLineColor(selected, day, idx);
     const width = selected === '__all__' ? 2.6 : 3.0;
     const alpha = selected === '__all__' ? 0.92 : 1;
     drawLineSeries(ctx, day.data, box, yMax, color, startMinute, endMinute, 'mets', width, false, alpha, 0);
