@@ -2,6 +2,7 @@ const state = {
   summaryRows: [],
   processedDays: [],
   heatmapRows: [],
+  paramRows: [],
   weekdayAverage: [],
   summaryAverage: {
     aveStep: NaN,
@@ -449,6 +450,7 @@ function updateAll() {
   drawSummaryCharts();
   drawDailyTimeseries();
   drawActivityHeatmap();
+  drawParamCharts();
   drawPersonalAverageComparison();
   drawWeekdayMeanChart();
 }
@@ -910,14 +912,15 @@ function parseHeatmapMatrix(text, fileName = '') {
 }
 
 function getHeatmapRows() {
-  if (state.heatmapRows.length) {
-    return state.heatmapRows.map((row, index) => ({
-      label: row.label || `No. ${index + 1}`,
-      values: row.values,
-      index,
-      source: row.source || '',
-    }));
-  }
+  return state.heatmapRows.map((row, index) => ({
+    label: row.label || `No. ${index + 1}`,
+    values: row.values,
+    index,
+    source: row.source || '',
+  }));
+}
+
+function getProcessedHeatmapRows() {
   return state.processedDays.map((day, index) => ({
     label: dailyLegendLabel(day),
     values: dayToMinuteArray(day),
@@ -933,7 +936,6 @@ function heatmapScore(values, sortBy, startMinute = 0, endMinute = 1440) {
   if (!valid.length) return -Infinity;
   if (sortBy === 'mean_mets') return mean(valid);
   if (sortBy === 'sed_ratio') return valid.filter((v) => v >= 0 && v < 1.5).length / valid.length;
-  if (sortBy === 'wear') return valid.length;
   // default: mvpa_ratio
   return valid.filter((v) => v >= 3).length / valid.length;
 }
@@ -974,15 +976,14 @@ function getHeatmapColorUpper() {
   return Number.isFinite(v) && v > 0 ? v : 3;
 }
 
-function drawActivityHeatmap() {
-  const canvas = el('activityHeatmapCanvas');
+function drawHeatmapCanvas(canvasId, sourceRows, emptyText, yAxisLabel = '時系列データ') {
+  const canvas = el(canvasId);
   if (!canvas) return;
   const { ctx, w, h } = getCanvasContext(canvas);
   clearCanvas(ctx, w, h);
 
-  const sourceRows = getHeatmapRows();
   if (!sourceRows.length) {
-    return drawNoData(ctx, w, h, '多人数時系列CSVまたはprocessed CSVを読み込むと、活動パターンカラーマップを表示します。');
+    return drawNoData(ctx, w, h, emptyText);
   }
 
   const sortBy = el('heatmapSort')?.value || 'mean_mets';
@@ -1059,7 +1060,7 @@ function drawActivityHeatmap() {
   ctx.save();
   ctx.translate(box.left - 52, box.top + box.height / 2);
   ctx.rotate(-Math.PI / 2);
-  ctx.fillText('時系列データ', 0, 0);
+  ctx.fillText(yAxisLabel, 0, 0);
   ctx.restore();
   ctx.fillText('時刻', box.left + box.width / 2, box.bottom + 58);
 
@@ -1106,6 +1107,226 @@ function drawActivityHeatmap() {
     ctx.fillText(`${nrow} rows`, box.left - 10, box.top + 12);
   }
 }
+
+function drawActivityHeatmap() {
+  drawHeatmapCanvas(
+    'activityHeatmapCanvas',
+    getHeatmapRows(),
+    '多人数時系列CSVを読み込むと、活動パターンカラーマップを表示します。',
+    '多人数時系列データ'
+  );
+  drawProcessedHeatmap();
+}
+
+function drawProcessedHeatmap() {
+  drawHeatmapCanvas(
+    'processedHeatmapCanvas',
+    getProcessedHeatmapRows(),
+    '各日の詳細データ（*_processed.csv）を読み込むと、各個人CSVから作成したカラーマップを表示します。',
+    '各個人CSV'
+  );
+}
+
+
+const PARAM_METRICS = [
+  ['wear', '装着時間'],
+  ['accumulated_mets', '総METs'],
+  ['mean_mets', '平均METs'],
+  ['sed_total', '座位相当時間'],
+  ['sed_bout', '座位相当Bout数'],
+  ['sed_exp', '座位相当Ex'],
+  ['light_total', '軽強度時間'],
+  ['light_bout', '軽強度Bout数'],
+  ['light_exp', '軽強度Ex'],
+  ['mvpa_total', 'MVPA時間'],
+  ['mvpa_bout', 'MVPA Bout数'],
+  ['mvpa_exp', 'MVPA Ex'],
+];
+
+function parseParamCsv(text) {
+  const rows = parseCsv(text);
+  if (!rows.length) return [];
+  const header = rows[0].map((h) => String(h).trim());
+  const lower = header.map((h) => h.toLowerCase());
+  const idx = (name) => lower.indexOf(name.toLowerCase());
+  return rows.slice(1).map((r, rowIndex) => {
+    const item = { _row: rowIndex };
+    header.forEach((h, i) => {
+      const n = parseNumber(r[i]);
+      item[h] = Number.isFinite(n) ? n : r[i];
+    });
+    const y = parseNumber(r[idx('year')]);
+    const m = parseNumber(r[idx('month')]);
+    const d = parseNumber(r[idx('day')]);
+    if (Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(d)) {
+      item._date = `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+    const week = r[idx('week')];
+    item._week = week || (item._date ? getWeekday(item._date) : '');
+    return item;
+  });
+}
+
+function setupParamMetricSelect() {
+  const select = el('paramMetric');
+  if (!select || select.options.length) return;
+  PARAM_METRICS.forEach(([key, label]) => select.appendChild(new Option(label, key)));
+  select.value = 'mean_mets';
+}
+
+function paramMetricLabel(key) {
+  return (PARAM_METRICS.find(([k]) => k === key) || [key, key])[1];
+}
+
+function getParamValues(key) {
+  return state.paramRows
+    .map((row) => parseNumber(row[key]))
+    .filter(Number.isFinite);
+}
+
+function updateParamCards() {
+  const key = el('paramMetric')?.value || 'mean_mets';
+  const values = getParamValues(key).sort((a, b) => a - b);
+  const count = state.paramRows.length;
+  if (el('paramCount')) el('paramCount').textContent = count ? `${fmtNumber(count)}件` : '-';
+  if (!values.length) {
+    ['paramMean', 'paramMedian', 'paramRange'].forEach((id) => { if (el(id)) el(id).textContent = '-'; });
+    return;
+  }
+  const digits = key.includes('mets') || key.includes('exp') ? 2 : 0;
+  if (el('paramMean')) el('paramMean').textContent = fmtNumber(mean(values), digits);
+  if (el('paramMedian')) el('paramMedian').textContent = fmtNumber(percentile(values, 0.5), digits);
+  if (el('paramRange')) el('paramRange').textContent = `${fmtNumber(values[0], digits)} - ${fmtNumber(values[values.length - 1], digits)}`;
+  if (el('paramMeanLabel')) el('paramMeanLabel').textContent = paramMetricLabel(key);
+}
+
+function drawParamHistogram() {
+  const canvas = el('paramHistogramCanvas');
+  if (!canvas) return;
+  const { ctx, w, h } = getCanvasContext(canvas);
+  clearCanvas(ctx, w, h);
+  const key = el('paramMetric')?.value || 'mean_mets';
+  const values = getParamValues(key);
+  if (!values.length) return drawNoData(ctx, w, h, '活動量指標CSVを読み込むと分布を表示します。');
+  const box = chartBox(w, h, 92, 48, 34, 78);
+  const minV = Math.min(...values);
+  const maxV = Math.max(...values);
+  const bins = Math.min(24, Math.max(8, Math.ceil(Math.sqrt(values.length))));
+  const span = Math.max(1e-9, maxV - minV);
+  const counts = Array.from({ length: bins }, () => 0);
+  values.forEach((v) => {
+    let bi = Math.floor(((v - minV) / span) * bins);
+    if (bi >= bins) bi = bins - 1;
+    if (bi < 0) bi = 0;
+    counts[bi]++;
+  });
+  const yMax = Math.max(1, Math.ceil(Math.max(...counts) * 1.15));
+  ctx.strokeStyle = COLORS.grid;
+  ctx.fillStyle = COLORS.muted;
+  ctx.font = chartFont(700, 16);
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  const yStep = Math.max(1, Math.ceil(yMax / 5));
+  for (let v = 0; v <= yMax; v += yStep) {
+    const y = box.bottom - (v / yMax) * box.height;
+    ctx.beginPath(); ctx.moveTo(box.left, y); ctx.lineTo(box.right, y); ctx.stroke();
+    ctx.fillText(fmtNumber(v), box.left - 12, y);
+  }
+  const gap = 4;
+  const barW = (box.width - gap * (bins - 1)) / bins;
+  counts.forEach((c, i) => {
+    const x = box.left + i * (barW + gap);
+    const barH = (c / yMax) * box.height;
+    ctx.fillStyle = COLORS.green;
+    ctx.fillRect(x, box.bottom - barH, barW, barH);
+  });
+  ctx.strokeStyle = COLORS.axis;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(box.left, box.bottom); ctx.lineTo(box.right, box.bottom); ctx.moveTo(box.left, box.top); ctx.lineTo(box.left, box.bottom); ctx.stroke();
+  ctx.fillStyle = COLORS.ink;
+  ctx.font = chartFont(800, 17);
+  ctx.textAlign = 'center';
+  ctx.fillText(paramMetricLabel(key), box.left + box.width / 2, box.bottom + 52);
+  ctx.save(); ctx.translate(box.left - 52, box.top + box.height / 2); ctx.rotate(-Math.PI/2); ctx.fillText('件数', 0, 0); ctx.restore();
+  ctx.fillStyle = COLORS.muted;
+  ctx.font = chartFont(700, 14);
+  ctx.textAlign = 'left';
+  ctx.fillText(`${fmtNumber(minV, 1)} - ${fmtNumber(maxV, 1)}`, box.left, box.top - 18);
+}
+
+function drawParamWeekChart() {
+  const canvas = el('paramWeekCanvas');
+  if (!canvas) return;
+  const { ctx, w, h } = getCanvasContext(canvas);
+  clearCanvas(ctx, w, h);
+  const key = el('paramMetric')?.value || 'mean_mets';
+  if (!state.paramRows.length) return drawNoData(ctx, w, h, '活動量指標CSVを読み込むと曜日別平均を表示します。');
+  const order = ['月', '火', '水', '木', '金', '土', '日'];
+  const rows = order.map((week) => {
+    const values = state.paramRows.filter((r) => String(r._week) === week).map((r) => parseNumber(r[key])).filter(Number.isFinite);
+    return { week, value: mean(values), n: values.length };
+  }).filter((r) => r.n > 0 && Number.isFinite(r.value));
+  if (!rows.length) return drawNoData(ctx, w, h, '曜日情報が見つかりません。');
+  const maxV = Math.max(...rows.map((r) => r.value));
+  const { yMax, yStep } = niceZeroBasedAxis(maxV, 5);
+  const box = chartBox(w, h, 92, 48, 34, 86);
+  ctx.strokeStyle = COLORS.grid;
+  ctx.fillStyle = COLORS.muted;
+  ctx.font = chartFont(700, 16);
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  for (let v = 0; v <= yMax + 1e-9; v += yStep) {
+    const y = box.bottom - (v / yMax) * box.height;
+    ctx.beginPath(); ctx.moveTo(box.left, y); ctx.lineTo(box.right, y); ctx.stroke();
+    ctx.fillText(fmtNumber(v, key.includes('mets') || key.includes('exp') ? 1 : 0), box.left - 12, y);
+  }
+  const gap = 22;
+  const barW = Math.max(28, (box.width - gap * (rows.length + 1)) / rows.length);
+  rows.forEach((r, i) => {
+    const x = box.left + gap + i * (barW + gap);
+    const barH = (r.value / yMax) * box.height;
+    ctx.fillStyle = weekdayColor(r.week, i);
+    ctx.fillRect(x, box.bottom - barH, barW, barH);
+    ctx.fillStyle = COLORS.ink;
+    ctx.font = chartFont(800, 16);
+    ctx.textAlign = 'center';
+    ctx.fillText(r.week, x + barW / 2, box.bottom + 28);
+    ctx.fillStyle = COLORS.muted;
+    ctx.font = chartFont(700, 13);
+    ctx.fillText(`n=${r.n}`, x + barW / 2, box.bottom + 50);
+  });
+  ctx.strokeStyle = COLORS.axis;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(box.left, box.bottom); ctx.lineTo(box.right, box.bottom); ctx.moveTo(box.left, box.top); ctx.lineTo(box.left, box.bottom); ctx.stroke();
+  ctx.fillStyle = COLORS.ink;
+  ctx.font = chartFont(800, 17);
+  ctx.save(); ctx.translate(box.left - 52, box.top + box.height / 2); ctx.rotate(-Math.PI/2); ctx.textAlign = 'center'; ctx.fillText(paramMetricLabel(key), 0, 0); ctx.restore();
+}
+
+function drawParamCharts() {
+  updateParamCards();
+  drawParamHistogram();
+  drawParamWeekChart();
+}
+
+async function loadDefaultParamData() {
+  try {
+    const text = await fetchText('data/physical_activity_param.csv');
+    state.paramRows = parseParamCsv(text);
+    if (el('paramFileName')) el('paramFileName').textContent = `data/physical_activity_param.csv / ${state.paramRows.length}行`;
+  } catch (err) {
+    console.warn('parameter csv could not be loaded', err);
+  }
+  drawParamCharts();
+}
+
+async function handleParamFile(file) {
+  const text = await readTextFile(file);
+  state.paramRows = parseParamCsv(text);
+  if (el('paramFileName')) el('paramFileName').textContent = `${file.name} / ${state.paramRows.length}行`;
+  drawParamCharts();
+}
+
 
 function drawPersonalAverageComparison() {
   const canvas = el('personalAverageCanvas');
@@ -1297,5 +1518,31 @@ if (el('heatmapInput')) el('heatmapInput').addEventListener('change', () => {
   const input = el('heatmapInput');
   if (input.files && input.files.length) handleHeatmapMatrixFile(input.files[0]);
 });
+
+
+function setupTabs() {
+  const buttons = document.querySelectorAll('.tab-button');
+  const panels = document.querySelectorAll('.tab-panel');
+  buttons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const target = button.dataset.tab;
+      buttons.forEach((b) => b.classList.toggle('active', b === button));
+      panels.forEach((p) => p.classList.toggle('active', p.id === target));
+      setTimeout(() => {
+        updateAll();
+        drawParamCharts();
+      }, 0);
+    });
+  });
+}
+
+setupParamMetricSelect();
+setupTabs();
+if (el('paramMetric')) el('paramMetric').addEventListener('change', drawParamCharts);
+if (el('paramInput')) el('paramInput').addEventListener('change', () => {
+  const input = el('paramInput');
+  if (input.files && input.files.length) handleParamFile(input.files[0]);
+});
+loadDefaultParamData();
 
 loadDefaultWeekdayAverage().then(updateAll);

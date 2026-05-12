@@ -16,7 +16,13 @@
         </p>
     </header>
 
+    <nav class="tab-nav" aria-label="dashboard tabs">
+      <button class="tab-button active" data-tab="dashboardTab">1 個人データ可視化</button>
+      <button class="tab-button" data-tab="paramTab">2 活動量指標</button>
+    </nav>
+
     <main class="layout">
+      <div id="dashboardTab" class="tab-panel active">
       <section class="panel upload-panel" id="upload">
         <div class="section-title">
           <span>1</span>
@@ -176,7 +182,6 @@
               <option value="mean_mets" selected>平均METsが高い順</option>
               <option value="mvpa_ratio">MVPA割合が高い順</option>
               <option value="sed_ratio">座位相当割合が高い順</option>
-              <option value="wear">装着時間が長い順</option>
             </select>
           </label>
           <label>横軸開始
@@ -194,10 +199,72 @@
           <span>縦軸: 多人数時系列データ</span>
           <span>色: METs（指定した色上限以上は同じ色）</span>
         </div>
-        <canvas id="activityHeatmapCanvas" width="1180" height="560" aria-label="activity pattern heatmap"></canvas>
+        <article class="mini-chart summary-wide heatmap-block">
+          <h3>多人数時系列CSVのカラーマップ</h3>
+          <canvas id="activityHeatmapCanvas" width="1180" height="560" aria-label="activity pattern heatmap"></canvas>
+        </article>
+        <article class="mini-chart summary-wide heatmap-block">
+          <h3>各個人CSVから作成したカラーマップ</h3>
+          <p class="chart-note">上部で読み込んだ各日の詳細データ（*_processed.csv）を1ファイル1行として表示します。並べ替え、横軸範囲、色上限METsは上の設定を共通で使用します。</p>
+          <canvas id="processedHeatmapCanvas" width="1180" height="560" aria-label="processed csv heatmap"></canvas>
+        </article>
       </section>
 
+      </div>
 
+      <div id="paramTab" class="tab-panel">
+        <section class="panel chart-panel" id="activity-parameters">
+          <div class="section-title">
+            <span>2</span>
+            <div>
+              <h2>活動量指標の可視化</h2>
+              <p>変数化した活動量指標を読み込み、分布と曜日別平均を表示します。</p>
+              <p>既定では data/physical_activity_param.csv を自動読み込みします。</p>
+            </div>
+          </div>
+          <div class="control-row compact-controls">
+            <label>活動量指標CSV
+              <input id="paramInput" class="inline-file" type="file" accept=".csv,text/csv" />
+              <small id="paramFileName">data/physical_activity_param.csv</small>
+            </label>
+            <label>表示する指標
+              <select id="paramMetric"></select>
+            </label>
+          </div>
+          <section class="dashboard-grid param-summary-grid">
+            <article class="stat-card">
+              <span class="card-label">データ数</span>
+              <strong id="paramCount">-</strong>
+              <small>読み込み行数</small>
+            </article>
+            <article class="stat-card">
+              <span class="card-label">平均</span>
+              <strong id="paramMean">-</strong>
+              <small id="paramMeanLabel">選択指標</small>
+            </article>
+            <article class="stat-card">
+              <span class="card-label">中央値</span>
+              <strong id="paramMedian">-</strong>
+              <small>選択指標</small>
+            </article>
+            <article class="stat-card">
+              <span class="card-label">最小 - 最大</span>
+              <strong id="paramRange">-</strong>
+              <small>選択指標</small>
+            </article>
+          </section>
+          <div class="summary-chart-grid stacked">
+            <article class="mini-chart summary-wide">
+              <h3>指標の分布</h3>
+              <canvas id="paramHistogramCanvas" width="1180" height="430" aria-label="parameter histogram"></canvas>
+            </article>
+            <article class="mini-chart summary-wide">
+              <h3>曜日別平均</h3>
+              <canvas id="paramWeekCanvas" width="1180" height="430" aria-label="parameter weekday mean"></canvas>
+            </article>
+          </div>
+        </section>
+      </div>
     </main>
 
     <footer>
