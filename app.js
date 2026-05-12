@@ -3,6 +3,8 @@ const state = {
   processedDays: [],
   heatmapRows: [],
   paramRows: [],
+  practiceSummary: null,
+  practicePersonal: null,
   personalParamRows: [],
   weekdayAverage: [],
   summaryAverage: {
@@ -452,6 +454,7 @@ function updateAll() {
   drawDailyTimeseries();
   drawActivityHeatmap();
   drawParamCharts();
+  drawPracticeIntensity();
   drawPersonalAverageComparison();
   drawWeekdayMeanChart();
 }
@@ -1816,6 +1819,205 @@ function roundedRect(ctx, x, y, w, h, r) {
   ctx.quadraticCurveTo(x, y, x + rr, y);
 }
 
+
+// v38: exercise-practice 10-second METs time-series page
+function timeToSecond(text) {
+  const m = String(text || '').trim().match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (!m) return NaN;
+  return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3] || 0);
+}
+
+function secondToTime(sec) {
+  const total = Math.max(0, Math.round(sec));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function parsePracticeSummary(text, fileName = '') {
+  const rows = parseCsv(text);
+  if (!rows.length) return { name: fileName, times: [], rows: [] };
+  const header = rows[0];
+  const firstTime = timeToSecond(header[0]);
+  const secondTime = timeToSecond(header[1]);
+  const offset = Number.isFinite(firstTime) ? 0 : (Number.isFinite(secondTime) ? 1 : 0);
+  const times = header.slice(offset).map(timeToSecond).filter(Number.isFinite);
+  const dataRows = rows.slice(1).map((row, i) => {
+    const label = offset ? (row[0] || `Data ${i + 1}`) : `Data ${i + 1}`;
+    const values = row.slice(offset, offset + times.length).map(parseNumber);
+    return { label, values };
+  }).filter((row) => row.values.some(Number.isFinite));
+  return { name: fileName, times, rows: dataRows };
+}
+
+function parsePracticePersonal(text, fileName = '') {
+  const rows = parseCsv(text);
+  if (!rows.length) return { name: fileName, id: '', date: '', series: [] };
+  let id = String(rows[0]?.[0] || '').trim();
+  let date = String(rows[1]?.[0] || '').trim();
+  let startIndex = rows.findIndex((row) => {
+    const first = String(row[0] || '').trim();
+    const second = parseNumber(row[1]);
+    return Number.isFinite(timeToSecond(first)) && Number.isFinite(second);
+  });
+  if (startIndex < 0) startIndex = rows.findIndex((row) => /時刻|time/i.test(String(row[0] || ''))) + 1;
+  if (startIndex < 0) startIndex = 0;
+  const series = rows.slice(startIndex).map((row) => ({
+    second: timeToSecond(row[0]),
+    mets: parseNumber(row[1]),
+  })).filter((row) => Number.isFinite(row.second) && Number.isFinite(row.mets));
+  if (!id) id = fileName.replace(/\.csv$/i, '');
+  return { name: fileName, id, date, series };
+}
+
+function drawPracticeGrid(ctx, box, yMax, startSecond, endSecond) {
+  const yMin = 0;
+  const yRange = Math.max(1e-9, yMax - yMin);
+  ctx.save();
+  ctx.strokeStyle = COLORS.grid;
+  ctx.lineWidth = 1.25;
+  ctx.fillStyle = COLORS.muted;
+  ctx.font = chartFont(700, 16);
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  for (let v = 0; v <= yMax + 1e-6; v += 1) {
+    const y = box.bottom - ((v - yMin) / yRange) * box.height;
+    ctx.beginPath();
+    ctx.moveTo(box.left, y);
+    ctx.lineTo(box.right, y);
+    ctx.stroke();
+    ctx.fillText(v.toFixed(1), box.left - 12, y);
+  }
+
+  const span = Math.max(1, endSecond - startSecond);
+  let step = 600;
+  if (span > 2 * 3600) step = 1800;
+  if (span > 6 * 3600) step = 3600;
+  if (span <= 30 * 60) step = 300;
+  const firstTick = Math.ceil(startSecond / step) * step;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  for (let t = firstTick; t <= endSecond + 1e-6; t += step) {
+    const x = box.left + ((t - startSecond) / span) * box.width;
+    ctx.beginPath();
+    ctx.moveTo(x, box.top);
+    ctx.lineTo(x, box.bottom);
+    ctx.stroke();
+    ctx.fillText(secondToTime(t), x, box.bottom + 14);
+  }
+
+  ctx.strokeStyle = COLORS.axis;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(box.left, box.bottom);
+  ctx.lineTo(box.right, box.bottom);
+  ctx.moveTo(box.left, box.top);
+  ctx.lineTo(box.left, box.bottom);
+  ctx.stroke();
+
+  ctx.fillStyle = COLORS.ink;
+  ctx.font = chartFont(800, 17);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.save();
+  ctx.translate(box.left - 58, box.top + box.height / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('METs', 0, 0);
+  ctx.restore();
+  ctx.fillText('時刻', box.left + box.width / 2, box.bottom + 58);
+  ctx.restore();
+}
+
+function drawPracticeSeries(ctx, points, box, yMax, startSecond, endSecond, color, width = 2, alpha = 1) {
+  const span = Math.max(1, endSecond - startSecond);
+  const yRange = Math.max(1e-9, yMax);
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = alpha;
+  ctx.lineWidth = width;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  let started = false;
+  points.forEach((p) => {
+    if (p.second < startSecond || p.second > endSecond || !Number.isFinite(p.mets) || p.mets < 0) {
+      started = false;
+      return;
+    }
+    const x = box.left + ((p.second - startSecond) / span) * box.width;
+    const yValue = Math.max(0, Math.min(p.mets, yMax));
+    const y = box.bottom - (yValue / yRange) * box.height;
+    if (!started) { ctx.moveTo(x, y); started = true; }
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawPracticeIntensity() {
+  const canvas = el('practiceIntensityCanvas');
+  if (!canvas) return;
+  const { ctx, w, h } = getCanvasContext(canvas);
+  clearCanvas(ctx, w, h);
+  const summary = state.practiceSummary;
+  if (!summary || !summary.times.length || !summary.rows.length) {
+    return drawNoData(ctx, w, h, '全員時系列CSVを読み込むと表示します。');
+  }
+  const startSecond = Math.min(...summary.times);
+  const endSecond = Math.max(...summary.times);
+  const rangeNote = el('practiceRangeNote');
+  if (rangeNote) rangeNote.textContent = `表示範囲: ${secondToTime(startSecond)}〜${secondToTime(endSecond)} / ${summary.rows.length}名`;
+
+  const summaryPoints = summary.rows.map((row) => summary.times.map((second, i) => ({ second, mets: row.values[i] })));
+  const personalMap = new Map((state.practicePersonal?.series || []).map((row) => [row.second, row.mets]));
+  const personalPoints = summary.times.map((second) => ({ second, mets: personalMap.get(second) }));
+  const allValues = [];
+  summaryPoints.forEach((row) => row.forEach((p) => { if (Number.isFinite(p.mets) && p.mets >= 0) allValues.push(p.mets); }));
+  personalPoints.forEach((p) => { if (Number.isFinite(p.mets) && p.mets >= 0) allValues.push(p.mets); });
+  const yMax = Math.max(5, Math.ceil((allValues.length ? Math.max(...allValues) : 5) * 1.08));
+  const box = chartBox(w, h, 92, 44, 40, 88);
+  drawPracticeGrid(ctx, box, yMax, startSecond, endSecond);
+  summaryPoints.forEach((row) => drawPracticeSeries(ctx, row, box, yMax, startSecond, endSecond, 'rgba(203, 213, 225, 0.34)', 1.1, 0.55));
+  if (state.practicePersonal && state.practicePersonal.series.length) {
+    drawPracticeSeries(ctx, personalPoints, box, yMax, startSecond, endSecond, COLORS.amber, 3.4, 1);
+    ctx.save();
+    ctx.fillStyle = COLORS.ink;
+    ctx.font = chartFont(800, 16);
+    ctx.textAlign = 'left';
+    const label = `${state.practicePersonal.id || '個人データ'}${state.practicePersonal.date ? ' / ' + state.practicePersonal.date : ''}`;
+    ctx.fillText(label, box.left, box.top - 18);
+    ctx.restore();
+  }
+}
+
+async function handlePracticeSummaryFile(file) {
+  const text = await readTextFile(file);
+  state.practiceSummary = parsePracticeSummary(text, file.name);
+  const nameBox = el('practiceSummaryFileName');
+  if (nameBox) nameBox.textContent = `${file.name} / ${state.practiceSummary.rows.length}名`;
+  drawPracticeIntensity();
+}
+
+async function handlePracticePersonalFile(file) {
+  const text = await readTextFile(file);
+  state.practicePersonal = parsePracticePersonal(text, file.name);
+  const nameBox = el('practicePersonalFileName');
+  if (nameBox) nameBox.textContent = file.name;
+  drawPracticeIntensity();
+}
+
+async function loadDefaultPracticeSummary() {
+  try {
+    const text = await fetchText('data/summary_timeseries_10SEC.csv');
+    state.practiceSummary = parsePracticeSummary(text, 'data/summary_timeseries_10SEC.csv');
+    const nameBox = el('practiceSummaryFileName');
+    if (nameBox) nameBox.textContent = `data/summary_timeseries_10SEC.csv / ${state.practiceSummary.rows.length}名`;
+    drawPracticeIntensity();
+  } catch (err) {
+    console.warn(err);
+  }
+}
+
 async function handleSummaryFile(file) {
   const text = await readTextFile(file);
   state.summaryRows = parseSummary(text);
@@ -1945,6 +2147,7 @@ function setupTabs() {
       setTimeout(() => {
         updateAll();
         drawParamCharts();
+        drawPracticeIntensity();
       }, 0);
     });
   });
@@ -1959,6 +2162,27 @@ if (el('personalParamInput')) el('personalParamInput').addEventListener('change'
   const input = el('personalParamInput');
   if (input.files && input.files.length) handlePersonalParamFile(input.files[0]);
 });
+
+if (el('practiceSummaryInput')) el('practiceSummaryInput').addEventListener('change', () => {
+  const input = el('practiceSummaryInput');
+  if (input.files && input.files.length) handlePracticeSummaryFile(input.files[0]);
+});
+if (el('practicePersonalInput')) el('practicePersonalInput').addEventListener('change', () => {
+  const input = el('practicePersonalInput');
+  if (input.files && input.files.length) handlePracticePersonalFile(input.files[0]);
+});
 loadDefaultParamData();
+loadDefaultPracticeSummary();
+
+
+let resizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    updateAll();
+    drawParamCharts();
+    drawPracticeIntensity();
+  }, 160);
+});
 
 loadDefaultWeekdayAverage().then(updateAll);

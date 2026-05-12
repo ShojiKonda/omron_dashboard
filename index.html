@@ -19,6 +19,7 @@
     <nav class="tab-nav" aria-label="dashboard tabs">
       <button class="tab-button active" data-tab="dashboardTab">1 個人データ可視化</button>
       <button class="tab-button" data-tab="paramTab">身体活動強度指標</button>
+      <button class="tab-button" data-tab="practiceTab">運動中の身体活動強度</button>
     </nav>
 
     <main class="layout">
@@ -301,6 +302,35 @@
           </section>
         </section>
       </div>
+
+      <div id="practiceTab" class="tab-panel">
+        <section class="panel chart-panel" id="practice-intensity">
+          <div class="section-title no-number">
+            <div>
+              <h2>運動中の身体活動強度</h2>
+              <p>実技中に計測した10秒ごとの身体活動強度データを時系列で可視化します。</p>
+              <p>匿名化した全員分の時系列データをグレーで重ね、各個人のデータを目立つ色で表示します。</p>
+            </div>
+          </div>
+          <div class="control-row compact-controls">
+            <label>全員時系列CSV
+              <input id="practiceSummaryInput" class="inline-file" type="file" accept=".csv,text/csv" />
+              <small id="practiceSummaryFileName">data/summary_timeseries_10SEC.csv</small>
+            </label>
+            <label>個人10秒METs CSV
+              <input id="practicePersonalInput" class="inline-file" type="file" accept=".csv,text/csv" />
+              <small id="practicePersonalFileName">未選択</small>
+            </label>
+          </div>
+          <div class="legend">
+            <span><i class="line practice-class-line"></i>全員データ</span>
+            <span><i class="line practice-personal-line"></i>個人データ</span>
+            <span id="practiceRangeNote">表示範囲: 全員時系列CSVと同じ時刻範囲</span>
+          </div>
+          <canvas id="practiceIntensityCanvas" width="1180" height="540" aria-label="exercise intensity 10-second time series"></canvas>
+        </section>
+      </div>
+
     </main>
 
     <footer>

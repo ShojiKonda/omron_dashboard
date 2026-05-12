@@ -746,3 +746,16 @@ canvas {
 .section-title.no-number > div {
   min-width: 0;
 }
+
+
+/* v38: tab 3 exercise intensity page */
+.practice-class-line {
+  background: rgba(203, 213, 225, 0.62);
+}
+.practice-personal-line {
+  background: #facc15;
+}
+#practiceIntensityCanvas {
+  width: 100%;
+  height: auto;
+}
