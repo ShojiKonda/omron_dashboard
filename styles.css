@@ -682,3 +682,58 @@ canvas {
 @media (max-width: 760px) {
   .param-card-grid { grid-template-columns: 1fr; }
 }
+
+
+/* v34: relationship scatter matrix for tab 2 */
+.param-scatter-section {
+  margin-top: 34px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+}
+.param-scatter-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+.param-scatter-title h3 {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--ink);
+}
+.param-scatter-title p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.param-scatter-legend {
+  margin: 0;
+  justify-content: flex-end;
+}
+.scatter-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+}
+.scatter-dot.class-dot {
+  background: rgba(45, 212, 191, 0.78);
+}
+.scatter-dot.personal-dot {
+  background: var(--amber);
+  border: 1px solid #ffffff;
+}
+.scatter-dot.median-dot-small {
+  background: #ffffff;
+  border: 2px solid var(--amber);
+}
+#paramScatterMatrixCanvas {
+  width: 100%;
+  height: auto;
+}
+@media (max-width: 900px) {
+  .param-scatter-title { flex-direction: column; }
+  .param-scatter-legend { justify-content: flex-start; }
+}

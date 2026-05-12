@@ -1217,6 +1217,58 @@ const PARAM_DASHBOARD_METRICS = [
   },
 ];
 
+
+const PARAM_RELATION_METRICS = [
+  {
+    key: 'sed_ratio',
+    shortLabel: '座位%',
+    label: '座位行動の割合',
+    unit: '%',
+    digits: 1,
+    value: (row) => ratioPercent(row.sed_total, row.wear),
+  },
+  {
+    key: 'sed_bout_ratio',
+    shortLabel: '座位回数',
+    label: '座位行動の回数',
+    unit: '回/時',
+    digits: 2,
+    value: (row) => boutPerHour(row.sed_bout, row.wear),
+  },
+  {
+    key: 'sed_exp',
+    shortLabel: '座位継続',
+    label: '座位行動の平均継続時間',
+    unit: '分',
+    digits: 1,
+    value: (row) => parseNumber(row.sed_exp),
+  },
+  {
+    key: 'mvpa_ratio',
+    shortLabel: 'MVPA%',
+    label: '中高強度活動の割合',
+    unit: '%',
+    digits: 1,
+    value: (row) => ratioPercent(row.mvpa_total, row.wear),
+  },
+  {
+    key: 'mvpa_bout_ratio',
+    shortLabel: 'MVPA回数',
+    label: '中高強度活動の回数',
+    unit: '回/時',
+    digits: 2,
+    value: (row) => boutPerHour(row.mvpa_bout, row.wear),
+  },
+  {
+    key: 'mvpa_exp',
+    shortLabel: 'MVPA継続',
+    label: '中高強度活動の平均継続時間',
+    unit: '分',
+    digits: 1,
+    value: (row) => parseNumber(row.mvpa_exp),
+  },
+];
+
 function dateOrderValue(row) {
   const y = parseNumber(row.year);
   const m = parseNumber(row.month);
@@ -1284,6 +1336,51 @@ function metricValues(rows, metric) {
     return metric.values(rows).filter(Number.isFinite);
   }
   return rows.map((row) => metric.value(row)).filter(Number.isFinite);
+}
+
+
+function metricRowValue(row, metric) {
+  if (!row || typeof metric.value !== 'function') return NaN;
+  const value = metric.value(row);
+  return Number.isFinite(value) ? value : NaN;
+}
+
+function paramPointRows(rows, metrics) {
+  return rows.map((row) => {
+    const values = {};
+    let validCount = 0;
+    metrics.forEach((metric) => {
+      const value = metricRowValue(row, metric);
+      if (Number.isFinite(value)) validCount += 1;
+      values[metric.key] = value;
+    });
+    return { row, values, validCount };
+  }).filter((item) => item.validCount >= 2);
+}
+
+function metricRangeForScatter(classPoints, personalPoints, metric) {
+  const values = [...classPoints, ...personalPoints]
+    .map((point) => point.values[metric.key])
+    .filter(Number.isFinite);
+  if (!values.length) return { min: 0, max: 1 };
+  let min = Math.min(...values);
+  let max = Math.max(...values);
+  if (Math.abs(max - min) < 1e-9) {
+    const pad = Math.max(0.5, Math.abs(max) * 0.08);
+    min -= pad;
+    max += pad;
+  } else {
+    const pad = (max - min) * 0.08;
+    min -= pad;
+    max += pad;
+  }
+  if (min > 0 && (metric.key.includes('ratio') || metric.key.includes('bout'))) min = 0;
+  return { min, max };
+}
+
+function pointMedian(points, metric) {
+  const values = points.map((p) => p.values[metric.key]).filter(Number.isFinite).sort((a, b) => a - b);
+  return values.length ? percentile(values, 0.5) : NaN;
 }
 
 function niceNumber(value) {
@@ -1443,8 +1540,179 @@ function drawParamDistribution(metric) {
   ctx.restore();
 }
 
+
+function drawParamScatterMatrix() {
+  const canvas = el('paramScatterMatrixCanvas');
+  if (!canvas) return;
+  const { ctx, w, h } = getCanvasContext(canvas);
+  clearCanvas(ctx, w, h);
+
+  const metrics = PARAM_RELATION_METRICS;
+  const classPoints = paramPointRows(state.paramRows, metrics);
+  if (!classPoints.length) {
+    return drawNoData(ctx, w, h, '全体指標CSVを読み込むと散布図を表示します。');
+  }
+  const personalPoints = paramPointRows(state.personalParamRows, metrics);
+  const n = metrics.length;
+  const margin = { left: 122, top: 38, right: 26, bottom: 96 };
+  const gap = 12;
+  const cellW = (w - margin.left - margin.right - gap * (n - 1)) / n;
+  const cellH = (h - margin.top - margin.bottom - gap * (n - 1)) / n;
+  const ranges = new Map(metrics.map((metric) => [metric.key, metricRangeForScatter(classPoints, personalPoints, metric)]));
+
+  const xOf = (value, metric, x0) => {
+    const range = ranges.get(metric.key);
+    return x0 + ((value - range.min) / Math.max(1e-9, range.max - range.min)) * cellW;
+  };
+  const yOf = (value, metric, y0) => {
+    const range = ranges.get(metric.key);
+    return y0 + cellH - ((value - range.min) / Math.max(1e-9, range.max - range.min)) * cellH;
+  };
+
+  ctx.save();
+  ctx.font = chartFont(800, 12);
+  ctx.lineWidth = 1;
+
+  for (let row = 0; row < n; row++) {
+    for (let col = 0; col < n; col++) {
+      const x0 = margin.left + col * (cellW + gap);
+      const y0 = margin.top + row * (cellH + gap);
+      const xMetric = metrics[col];
+      const yMetric = metrics[row];
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
+      ctx.fillRect(x0, y0, cellW, cellH);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+      ctx.strokeRect(x0, y0, cellW, cellH);
+
+      if (row === col) {
+        ctx.fillStyle = COLORS.ink;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = chartFont(900, 13);
+        ctx.fillText(xMetric.shortLabel, x0 + cellW / 2, y0 + cellH / 2 - 8);
+        ctx.font = chartFont(700, 10);
+        ctx.fillStyle = COLORS.muted;
+        ctx.fillText(`(${xMetric.unit})`, x0 + cellW / 2, y0 + cellH / 2 + 12);
+        continue;
+      }
+
+      // Light grid in each cell
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
+      ctx.lineWidth = 1;
+      for (let k = 1; k <= 3; k++) {
+        const gx = x0 + (cellW * k) / 4;
+        const gy = y0 + (cellH * k) / 4;
+        ctx.beginPath();
+        ctx.moveTo(gx, y0);
+        ctx.lineTo(gx, y0 + cellH);
+        ctx.moveTo(x0, gy);
+        ctx.lineTo(x0 + cellW, gy);
+        ctx.stroke();
+      }
+
+      // Whole-class points
+      ctx.fillStyle = 'rgba(45, 212, 191, 0.28)';
+      classPoints.forEach((point) => {
+        const xv = point.values[xMetric.key];
+        const yv = point.values[yMetric.key];
+        if (!Number.isFinite(xv) || !Number.isFinite(yv)) return;
+        const x = xOf(xv, xMetric, x0);
+        const y = yOf(yv, yMetric, y0);
+        ctx.beginPath();
+        ctx.arc(x, y, 2.1, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Uploaded personal points
+      if (personalPoints.length) {
+        ctx.fillStyle = 'rgba(250, 204, 21, 0.88)';
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 0.9;
+        personalPoints.forEach((point) => {
+          const xv = point.values[xMetric.key];
+          const yv = point.values[yMetric.key];
+          if (!Number.isFinite(xv) || !Number.isFinite(yv)) return;
+          const x = xOf(xv, xMetric, x0);
+          const y = yOf(yv, yMetric, y0);
+          ctx.beginPath();
+          ctx.arc(x, y, 3.8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        });
+
+        const xm = pointMedian(personalPoints, xMetric);
+        const ym = pointMedian(personalPoints, yMetric);
+        if (Number.isFinite(xm) && Number.isFinite(ym)) {
+          const x = xOf(xm, xMetric, x0);
+          const y = yOf(ym, yMetric, y0);
+          ctx.fillStyle = '#ffffff';
+          ctx.strokeStyle = COLORS.amber;
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(x, y, 5.4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  // Outer numeric ticks and labels. Keep the matrix compact by labelling bottom row and left column.
+  ctx.font = chartFont(700, 10);
+  ctx.fillStyle = COLORS.ink;
+  ctx.strokeStyle = COLORS.axis;
+  ctx.lineWidth = 1.2;
+  metrics.forEach((metric, col) => {
+    const x0 = margin.left + col * (cellW + gap);
+    const y0 = margin.top + (n - 1) * (cellH + gap);
+    const range = ranges.get(metric.key);
+    const ticks = [range.min, (range.min + range.max) / 2, range.max];
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ticks.forEach((tick) => {
+      const x = xOf(tick, metric, x0);
+      ctx.beginPath();
+      ctx.moveTo(x, y0 + cellH);
+      ctx.lineTo(x, y0 + cellH + 5);
+      ctx.stroke();
+      ctx.fillText(fmtNumber(tick, metric.digits), x, y0 + cellH + 8);
+    });
+    ctx.font = chartFont(800, 11);
+    ctx.fillText(metric.shortLabel, x0 + cellW / 2, y0 + cellH + 34);
+    ctx.font = chartFont(700, 10);
+  });
+
+  metrics.forEach((metric, row) => {
+    const x0 = margin.left;
+    const y0 = margin.top + row * (cellH + gap);
+    const range = ranges.get(metric.key);
+    const ticks = [range.min, (range.min + range.max) / 2, range.max];
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ticks.forEach((tick) => {
+      const y = yOf(tick, metric, y0);
+      ctx.beginPath();
+      ctx.moveTo(x0 - 5, y);
+      ctx.lineTo(x0, y);
+      ctx.stroke();
+      ctx.fillText(fmtNumber(tick, metric.digits), x0 - 8, y);
+    });
+    ctx.save();
+    ctx.translate(x0 - 76, y0 + cellH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'center';
+    ctx.font = chartFont(800, 11);
+    ctx.fillText(metric.shortLabel, 0, 0);
+    ctx.restore();
+  });
+
+  ctx.restore();
+}
+
 function drawParamCharts() {
   PARAM_DASHBOARD_METRICS.forEach(drawParamDistribution);
+  drawParamScatterMatrix();
 }
 
 async function loadDefaultParamData() {
