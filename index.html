@@ -29,20 +29,19 @@
           <span>1</span>
           <div>
             <h2>データを読み込む</h2>
-            <p>サマリーデータ（学籍番号.csv）、各日の詳細データ（*_processed.csv）を複数選択します。ファイルはブラウザ内で処理されます。</p>
           </div>
         </div>
         <div class="drop-grid two">
           <label class="drop-zone" id="summaryDrop">
             <input id="summaryInput" type="file" accept=".csv,text/csv" />
             <strong>サマリーデータ（学籍番号.csv）</strong>
-            <small>例: demo_20221021.csv</small>
+            <small>例: 00Z99999.csv</small>
             <span id="summaryFileName">未選択</span>
           </label>
           <label class="drop-zone" id="processedDrop">
             <input id="processedInput" type="file" accept=".csv,text/csv" multiple />
-            <strong>各日の詳細データ（*_processed.csv）</strong>
-            <small>例: *_processed_20221021.csv</small>
+            <strong>各日の詳細データを複数選択（*_processed.csv）</strong>
+            <small>例: 00Z99999_processed_2026XXXX.csv</small>
             <span id="processedFileName">未選択</span>
           </label>
         </div>
@@ -168,13 +167,13 @@
         <div class="section-title">
           <span>7</span>
           <div>
-            <h2>活動パターンカラーマップ</h2>
+            <h2>活動強度パターンカラーマップ</h2>
             <p>各日の詳細データを横方向に時刻、縦方向にファイルとして並べ、活動強度の分布を色で表示</p>
             <p>指定した色上限以上は同じ色で表示し、0・非装着・欠損は暗色で表示</p>
           </div>
         </div>
         <div class="control-row compact-controls">
-          <label>多人数時系列CSV
+          <label>多人数時系列
             <input id="heatmapInput" class="inline-file" type="file" accept=".csv,text/csv" />
             <small id="heatmapFileName">未選択</small>
           </label>
@@ -201,14 +200,14 @@
           <span>色: METs（指定した色上限以上は同じ色、0は無効データ）</span>
         </div>
         <article class="mini-chart summary-wide heatmap-block">
-          <h3>多人数時系列CSVのカラーマップ</h3>
+          <h3>多人数時系列のカラーマップ</h3>
           <canvas id="activityHeatmapCanvas" width="1180" height="560" aria-label="activity pattern heatmap"></canvas>
         </article>
         <article class="mini-chart summary-wide heatmap-block">
-          <h3>各個人CSVから作成したカラーマップ</h3>
-          <p class="chart-note">上部で読み込んだ各日の詳細データ（*_processed.csv）を1ファイル1行として表示します。横軸範囲、色上限METsは上の設定を共通で使用します。</p>
+          <h3>各個人時系列のカラーマップ</h3>
+          <p class="chart-note">各日の詳細データ（*_processed.csv）を1ファイル1行として表示</p>
           <div class="control-row compact-controls heatmap-sub-controls">
-            <label>各個人CSVの並べ替え
+            <label>各個人時系列データの並べ替え
               <select id="processedHeatmapSort">
                 <option value="date" selected>日付順</option>
                 <option value="mean_mets">平均METsが高い順</option>

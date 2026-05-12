@@ -1127,7 +1127,7 @@ function drawActivityHeatmap() {
     'activityHeatmapCanvas',
     getHeatmapRows(),
     '多人数時系列CSVを読み込むと、活動パターンカラーマップを表示します。',
-    '多人数時系列データ',
+    '',
     'heatmapSort'
   );
   drawProcessedHeatmap();
@@ -1138,7 +1138,7 @@ function drawProcessedHeatmap() {
     'processedHeatmapCanvas',
     getProcessedHeatmapRows(),
     '各日の詳細データ（*_processed.csv）を読み込むと、各個人CSVから作成したカラーマップを表示します。',
-    '各個人CSV',
+    '',
     'processedHeatmapSort'
   );
 }
