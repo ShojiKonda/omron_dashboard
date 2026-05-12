@@ -310,7 +310,13 @@ function niceZeroBasedAxis(maxValue, targetTicks = 5) {
 }
 
 function integerMetsYMax(values, minimum = 3) {
-  return Math.max(minimum, Math.ceil(niceYMax(values, minimum)));
+  const good = values.filter((v) => Number.isFinite(v) && v > 0);
+  if (!good.length) return minimum;
+  const maxValue = Math.max(...good);
+  // METs charts must keep a 0.0 baseline and 1.0-MET grid spacing.
+  // Use a small 8% headroom, then round only to the next integer.
+  // This avoids the previous over-rounding such as 13.7 -> 20.0 while still preserving the true maximum.
+  return Math.max(minimum, Math.ceil(maxValue * 1.08));
 }
 
 function computeDayStats(data) {
