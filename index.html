@@ -109,7 +109,12 @@
           <label>表示する日
             <select id="daySelect"></select>
           </label>
-          <span class="fixed-range-note">表示範囲: 08:00〜20:00</span>
+          <label>横軸開始
+            <select id="rangeStart"></select>
+          </label>
+          <label>横軸終了
+            <select id="rangeEnd"></select>
+          </label>
         </div>
         <div class="legend" id="dailyLegend">
           <span>CSVを読み込むと、日付ごとの凡例を表示します。</span>
@@ -129,7 +134,7 @@
         <div class="legend">
           <span><i class="line orange"></i>個人活動パターン</span>
           <span><i class="line navy"></i>全体活動パターン</span>
-          <span>5分移動平均、表示範囲内の最大値で正規化</span>
+          <span>15分移動平均、95パーセンタイル正規化</span>
         </div>
         <canvas id="personalAverageCanvas" width="1180" height="460" aria-label="personal average versus weekday average"></canvas>
       </section>
