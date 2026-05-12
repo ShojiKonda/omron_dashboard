@@ -737,3 +737,14 @@ canvas {
   .param-scatter-title { flex-direction: column; }
   .param-scatter-legend { justify-content: flex-start; }
 }
+
+
+/* v35: prevent canvas text/axis distortion during responsive resizing */
+canvas {
+  display: block;
+  max-width: 100%;
+}
+.param-card canvas,
+.param-scatter-section canvas {
+  width: 100%;
+}

@@ -1959,6 +1959,24 @@ if (el('personalParamInput')) el('personalParamInput').addEventListener('change'
   const input = el('personalParamInput');
   if (input.files && input.files.length) handlePersonalParamFile(input.files[0]);
 });
+
+
+// v35: Redraw canvases after browser width changes.
+// Canvas charts are bitmap-based. If the browser changes the CSS width without
+// redrawing the bitmap, text and axes can appear horizontally or vertically
+// stretched. This debounced resize redraw keeps the canvas drawing buffer and
+// display size synchronized.
+let resizeRedrawTimer = null;
+function scheduleCanvasRedraw() {
+  if (resizeRedrawTimer) window.clearTimeout(resizeRedrawTimer);
+  resizeRedrawTimer = window.setTimeout(() => {
+    updateAll();
+    drawParamCharts();
+  }, 120);
+}
+window.addEventListener('resize', scheduleCanvasRedraw);
+window.addEventListener('orientationchange', scheduleCanvasRedraw);
+
 loadDefaultParamData();
 
 loadDefaultWeekdayAverage().then(updateAll);
