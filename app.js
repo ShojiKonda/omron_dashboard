@@ -522,11 +522,14 @@ function setupRangeControls() {
   fillRangeSelects('rangeStart', 'rangeEnd', 8, 20);
   fillRangeSelects('avgRangeStart', 'avgRangeEnd', 8, 20);
   fillRangeSelects('weekdayRangeStart', 'weekdayRangeEnd', 8, 20);
+  fillRangeSelects('heatmapRangeStart', 'heatmapRangeEnd', 0, 24);
 }
 
 function getRangeFrom(startId, endId, defaultStart = 0, defaultEnd = 24) {
-  const startHour = Number(el(startId)?.value ?? defaultStart);
-  const endHour = Number(el(endId)?.value ?? defaultEnd);
+  const startValue = el(startId)?.value;
+  const endValue = el(endId)?.value;
+  const startHour = startValue === undefined || startValue === '' ? defaultStart : Number(startValue);
+  const endHour = endValue === undefined || endValue === '' ? defaultEnd : Number(endValue);
   let startMinute = Number.isFinite(startHour) ? startHour * 60 : defaultStart * 60;
   let endMinute = Number.isFinite(endHour) ? endHour * 60 : defaultEnd * 60;
   if (endMinute <= startMinute) {
@@ -963,7 +966,7 @@ function heatmapJetColor(value, upper = 3) {
 }
 
 function getHeatmapTimeRange() {
-  return getRangeFrom('heatmapRangeStart', 'heatmapRangeEnd', 8, 20);
+  return getRangeFrom('heatmapRangeStart', 'heatmapRangeEnd', 0, 24);
 }
 
 function getHeatmapColorUpper() {
