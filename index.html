@@ -122,9 +122,44 @@
         <canvas id="dailyTimeseriesCanvas" width="1180" height="460" aria-label="daily METs time series"></canvas>
       </section>
 
+      <section class="panel chart-panel" id="personal-average">
+        <div class="section-title">
+          <span>5</span>
+          <div>
+            <h2>個人と全体の活動パターン比較</h2>
+            <p>METsの絶対値ではなく、活動が高まりやすい時間帯のパターンを比較</p>
+            <p>表示範囲は08:00〜20:00、縦軸は相対活動レベル（0〜100）</p>
+          </div>
+        </div>
+        <div class="legend">
+          <span><i class="line orange"></i>個人活動パターン</span>
+          <span><i class="line navy"></i>全体活動パターン</span>
+          <span>15分移動平均、95パーセンタイル正規化</span>
+        </div>
+        <canvas id="personalAverageCanvas" width="1180" height="460" aria-label="personal average versus weekday average"></canvas>
+      </section>
+
+      <section class="panel chart-panel" id="weekday-average">
+        <div class="section-title">
+          <span>6</span>
+          <div>
+            <h2>平日平均METs: 月〜金</h2>
+            <p>月曜〜金曜の全員平均活動強度パターンを比較</p>
+            <p>表示範囲は08:00〜20:00</p>
+          </div>
+        </div>
+        <div class="legend">
+          <span><i class="line monday"></i>月曜</span>
+          <span><i class="line tuesday"></i>火曜</span>
+          <span><i class="line wednesday"></i>水曜</span>
+          <span><i class="line thursday"></i>木曜</span>
+          <span><i class="line friday"></i>金曜</span>
+        </div>
+        <canvas id="weekdayMeanCanvas" width="1180" height="460" aria-label="weekday mean METs chart"></canvas>
+      </section>
       <section class="panel chart-panel" id="activity-colormap">
         <div class="section-title">
-          <span>4</span>
+          <span>7</span>
           <div>
             <h2>活動パターンカラーマップ</h2>
             <p>各日の詳細データを横方向に時刻、縦方向にファイルとして並べ、活動強度の分布を色で表示</p>
@@ -162,41 +197,7 @@
         <canvas id="activityHeatmapCanvas" width="1180" height="560" aria-label="activity pattern heatmap"></canvas>
       </section>
 
-      <section class="panel chart-panel" id="personal-average">
-        <div class="section-title">
-          <span>5</span>
-          <div>
-            <h2>個人と全体の活動パターン比較</h2>
-            <p>METsの絶対値ではなく、活動が高まりやすい時間帯のパターンを比較</p>
-            <p>表示範囲は08:00〜20:00、縦軸は相対活動レベル（0〜100）</p>
-          </div>
-        </div>
-        <div class="legend">
-          <span><i class="line orange"></i>個人活動パターン</span>
-          <span><i class="line navy"></i>全体活動パターン</span>
-          <span>15分移動平均、95パーセンタイル正規化</span>
-        </div>
-        <canvas id="personalAverageCanvas" width="1180" height="460" aria-label="personal average versus weekday average"></canvas>
-      </section>
 
-      <section class="panel chart-panel" id="weekday-average">
-        <div class="section-title">
-          <span>6</span>
-          <div>
-            <h2>平日平均METs: 月〜金</h2>
-            <p>月曜〜金曜の全員平均活動強度パターンを比較</p>
-            <p>表示範囲は08:00〜20:00</p>
-          </div>
-        </div>
-        <div class="legend">
-          <span><i class="line monday"></i>月曜</span>
-          <span><i class="line tuesday"></i>火曜</span>
-          <span><i class="line wednesday"></i>水曜</span>
-          <span><i class="line thursday"></i>木曜</span>
-          <span><i class="line friday"></i>金曜</span>
-        </div>
-        <canvas id="weekdayMeanCanvas" width="1180" height="460" aria-label="weekday mean METs chart"></canvas>
-      </section>
     </main>
 
     <footer>
