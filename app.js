@@ -927,6 +927,7 @@ function getProcessedHeatmapRows() {
     day,
     index,
     source: day.name || '',
+    dateSortKey: day.date || '',
   }));
 }
 
@@ -976,7 +977,7 @@ function getHeatmapColorUpper() {
   return Number.isFinite(v) && v > 0 ? v : 3;
 }
 
-function drawHeatmapCanvas(canvasId, sourceRows, emptyText, yAxisLabel = '時系列データ') {
+function drawHeatmapCanvas(canvasId, sourceRows, emptyText, yAxisLabel = '時系列データ', sortSelectId = 'heatmapSort') {
   const canvas = el(canvasId);
   if (!canvas) return;
   const { ctx, w, h } = getCanvasContext(canvas);
@@ -986,7 +987,7 @@ function drawHeatmapCanvas(canvasId, sourceRows, emptyText, yAxisLabel = '時系
     return drawNoData(ctx, w, h, emptyText);
   }
 
-  const sortBy = el('heatmapSort')?.value || 'mean_mets';
+  const sortBy = el(sortSelectId)?.value || 'mean_mets';
   const { startMinute, endMinute } = getHeatmapTimeRange();
   const colorUpper = getHeatmapColorUpper();
   const minutes = Math.max(1, endMinute - startMinute);
@@ -995,8 +996,13 @@ function drawHeatmapCanvas(canvasId, sourceRows, emptyText, yAxisLabel = '時系
     ...row,
     index,
     score: heatmapScore(row.values, sortBy, startMinute, endMinute),
+    dateSortKey: row.dateSortKey || row.day?.date || row.label || String(index).padStart(4, '0'),
   }));
-  rows = rows.sort((a, b) => b.score - a.score);
+  if (sortBy === 'date') {
+    rows = rows.sort((a, b) => String(a.dateSortKey).localeCompare(String(b.dateSortKey)) || a.index - b.index);
+  } else {
+    rows = rows.sort((a, b) => b.score - a.score || a.index - b.index);
+  }
 
   const labelLeft = 78;
   const colorbarWidth = 28;
@@ -1113,7 +1119,8 @@ function drawActivityHeatmap() {
     'activityHeatmapCanvas',
     getHeatmapRows(),
     '多人数時系列CSVを読み込むと、活動パターンカラーマップを表示します。',
-    '多人数時系列データ'
+    '多人数時系列データ',
+    'heatmapSort'
   );
   drawProcessedHeatmap();
 }
@@ -1123,7 +1130,8 @@ function drawProcessedHeatmap() {
     'processedHeatmapCanvas',
     getProcessedHeatmapRows(),
     '各日の詳細データ（*_processed.csv）を読み込むと、各個人CSVから作成したカラーマップを表示します。',
-    '各個人CSV'
+    '各個人CSV',
+    'processedHeatmapSort'
   );
 }
 
@@ -1511,6 +1519,7 @@ if (el('avgRangeEnd')) el('avgRangeEnd').addEventListener('change', drawPersonal
 if (el('weekdayRangeStart')) el('weekdayRangeStart').addEventListener('change', drawWeekdayMeanChart);
 if (el('weekdayRangeEnd')) el('weekdayRangeEnd').addEventListener('change', drawWeekdayMeanChart);
 if (el('heatmapSort')) el('heatmapSort').addEventListener('change', drawActivityHeatmap);
+if (el('processedHeatmapSort')) el('processedHeatmapSort').addEventListener('change', drawProcessedHeatmap);
 if (el('heatmapRangeStart')) el('heatmapRangeStart').addEventListener('change', drawActivityHeatmap);
 if (el('heatmapRangeEnd')) el('heatmapRangeEnd').addEventListener('change', drawActivityHeatmap);
 if (el('heatmapVMax')) el('heatmapVMax').addEventListener('input', drawActivityHeatmap);

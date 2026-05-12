@@ -205,7 +205,17 @@
         </article>
         <article class="mini-chart summary-wide heatmap-block">
           <h3>各個人CSVから作成したカラーマップ</h3>
-          <p class="chart-note">上部で読み込んだ各日の詳細データ（*_processed.csv）を1ファイル1行として表示します。並べ替え、横軸範囲、色上限METsは上の設定を共通で使用します。</p>
+          <p class="chart-note">上部で読み込んだ各日の詳細データ（*_processed.csv）を1ファイル1行として表示します。横軸範囲、色上限METsは上の設定を共通で使用します。</p>
+          <div class="control-row compact-controls heatmap-sub-controls">
+            <label>各個人CSVの並べ替え
+              <select id="processedHeatmapSort">
+                <option value="date" selected>日付順</option>
+                <option value="mean_mets">平均METsが高い順</option>
+                <option value="mvpa_ratio">MVPA割合が高い順</option>
+                <option value="sed_ratio">座位相当割合が高い順</option>
+              </select>
+            </label>
+          </div>
           <canvas id="processedHeatmapCanvas" width="1180" height="560" aria-label="processed csv heatmap"></canvas>
         </article>
       </section>
