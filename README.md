@@ -145,3 +145,15 @@ date,weekday,steps,wear_minutes,exercise_ex
 
 - 平日平均METs: 月〜金の縦軸を0.0, 1.0, 2.0, 3.0, 4.0に固定。
 - 個人平均と全体平均の比較では、横補助線を1.0 METsごとに表示し、数値目盛は2.0 METsごとに表示。
+
+
+## v14 update
+
+- 時系列グラフに縦軸ラベル「METs」と横軸ラベル「時刻」を追加。
+
+## v15 update
+
+- グラフ内の文字色、軸線、軸ラベルを白に統一。
+- グラフ内フォントを Noto Sans JP / Hiragino Sans / Yu Gothic / Meiryo 系に統一。
+- canvas を表示サイズと devicePixelRatio に合わせて再描画し、文字と線のぼやけを軽減。
+- 時系列グラフの縦軸ラベル（METs）・横軸ラベル（時刻）を維持。

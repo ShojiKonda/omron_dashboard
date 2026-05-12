@@ -539,3 +539,25 @@ button.primary,
 .status-dot {
   box-shadow: none !important;
 }
+
+/* v15: unified typography and crisp chart rendering */
+:root {
+  --app-font: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", "Yu Gothic UI", Meiryo, sans-serif;
+}
+
+html,
+body,
+button,
+input,
+select,
+textarea,
+.legend,
+.stat-card,
+.panel,
+.drop-zone {
+  font-family: var(--app-font) !important;
+}
+
+canvas {
+  image-rendering: auto;
+}

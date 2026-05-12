@@ -11,16 +11,16 @@ const state = {
 const el = (id) => document.getElementById(id);
 
 const COLORS = {
-  ink: '#e8eef7',
-  muted: '#9aa8bd',
-  faint: 'rgba(148, 163, 184, 0.12)',
-  grid: 'rgba(148, 163, 184, 0.18)',
-  axis: 'rgba(226, 232, 240, 0.42)',
+  ink: '#ffffff',
+  muted: '#ffffff',
+  faint: 'rgba(255, 255, 255, 0.18)',
+  grid: 'rgba(255, 255, 255, 0.28)',
+  axis: '#ffffff',
   chartBg: '#111827',
   plotBg: '#111827',
   blue: '#60a5fa',
   cyan: '#22d3ee',
-  navy: '#e8eef7',
+  navy: '#ffffff',
   orange: '#fb923c',
   green: '#2dd4bf',
   purple: '#a78bfa',
@@ -28,6 +28,9 @@ const COLORS = {
   pink: '#f472b6',
   red: '#f87171',
 };
+
+const CHART_FONT_FAMILY = '"Noto Sans JP", "Hiragino Sans", "Yu Gothic", "Yu Gothic UI", Meiryo, sans-serif';
+const chartFont = (weight, size) => `${weight} ${size}px ${CHART_FONT_FAMILY}`;
 
 function fmtNumber(value, digits = 0) {
   if (value === null || value === undefined || Number.isNaN(value)) return '-';
@@ -416,6 +419,31 @@ function getTimeRange() {
   return getRangeFrom('rangeStart', 'rangeEnd', 0, 24);
 }
 
+function getCanvasContext(canvas) {
+  const baseWidth = Number(canvas.dataset.baseWidth || canvas.getAttribute('width') || canvas.width || 1180);
+  const baseHeight = Number(canvas.dataset.baseHeight || canvas.getAttribute('height') || canvas.height || 460);
+  canvas.dataset.baseWidth = String(baseWidth);
+  canvas.dataset.baseHeight = String(baseHeight);
+
+  const rect = canvas.getBoundingClientRect();
+  const cssWidth = Math.max(1, Math.round(rect.width || baseWidth));
+  const cssHeight = Math.max(1, Math.round(cssWidth * baseHeight / baseWidth));
+  const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+  const targetWidth = Math.round(cssWidth * dpr);
+  const targetHeight = Math.round(cssHeight * dpr);
+
+  if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+  }
+  canvas.style.height = `${cssHeight}px`;
+
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  return { ctx, w: cssWidth, h: cssHeight };
+}
+
 function clearCanvas(ctx, w, h) {
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = COLORS.chartBg;
@@ -434,7 +462,7 @@ function chartBox(w, h, left = 86, top = 56, right = 40, bottom = 86) {
 function drawNoData(ctx, w, h, text) {
   clearCanvas(ctx, w, h);
   ctx.fillStyle = COLORS.muted;
-  ctx.font = '700 22px "Noto Sans JP", sans-serif';
+  ctx.font = chartFont(700, 22);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text, w / 2, h / 2);
@@ -454,9 +482,9 @@ function drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep = 4, opti
 
   ctx.save();
   ctx.strokeStyle = COLORS.grid;
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 1.25;
   ctx.fillStyle = COLORS.muted;
-  ctx.font = '700 16px "Noto Sans JP", sans-serif';
+  ctx.font = chartFont(700, 16);
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
 
@@ -493,7 +521,7 @@ function drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep = 4, opti
   }
 
   ctx.strokeStyle = COLORS.axis;
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(box.left, box.bottom);
   ctx.lineTo(box.right, box.bottom);
@@ -502,7 +530,7 @@ function drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep = 4, opti
   ctx.stroke();
 
   ctx.fillStyle = COLORS.ink;
-  ctx.font = '800 17px "Noto Sans JP", sans-serif';
+  ctx.font = chartFont(800, 17);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.save();
@@ -579,8 +607,7 @@ function getEligibleSummaryRows() {
 
 function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenceValue = NaN, referenceLabel = '全員平均') {
   const canvas = el(canvasId);
-  const ctx = canvas.getContext('2d');
-  const w = canvas.width, h = canvas.height;
+  const { ctx, w, h } = getCanvasContext(canvas);
   clearCanvas(ctx, w, h);
   if (!rows.length) return drawNoData(ctx, w, h, emptyText);
 
@@ -592,7 +619,7 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenc
   ctx.save();
   ctx.strokeStyle = COLORS.grid;
   ctx.fillStyle = COLORS.muted;
-  ctx.font = '700 16px "Noto Sans JP", sans-serif';
+  ctx.font = chartFont(700, 16);
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
   for (let i = 0; i <= 5; i++) {
@@ -606,7 +633,7 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenc
   }
 
   ctx.fillStyle = COLORS.ink;
-  ctx.font = '900 19px "Noto Sans JP", sans-serif';
+  ctx.font = chartFont(900, 19);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
   ctx.fillText(unit, box.left, box.top - 26);
@@ -624,7 +651,7 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenc
     ctx.restore();
 
     ctx.fillStyle = COLORS.ink;
-    ctx.font = '800 14px "Noto Sans JP", sans-serif';
+    ctx.font = chartFont(800, 14);
     ctx.textAlign = 'center';
     if (barW > 22 && barH > 24) {
       ctx.fillText(fmtNumber(v, valueKey === 'exerciseEx' ? 1 : 0), x + barW / 2, box.bottom - barH - 8);
@@ -634,7 +661,7 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenc
     ctx.translate(x + barW / 2, box.bottom + 26);
     ctx.rotate(-Math.PI / 6);
     ctx.fillStyle = COLORS.muted;
-    ctx.font = '700 16px "Noto Sans JP", sans-serif';
+    ctx.font = chartFont(700, 16);
     ctx.textAlign = 'right';
     ctx.fillText(`${r.date.slice(5)}(${r.weekday || '-'})`, 0, 0);
     ctx.restore();
@@ -652,7 +679,7 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenc
     ctx.stroke();
     ctx.setLineDash([]);
     const label = `${referenceLabel}: ${fmtNumber(referenceValue, valueKey === 'exerciseEx' ? 2 : 0)} ${unit}`;
-    ctx.font = '900 15px "Noto Sans JP", sans-serif';
+    ctx.font = chartFont(900, 15);
     const labelWidth = ctx.measureText(label).width + 24;
     const labelX = box.right - labelWidth - 10;
     const labelY = Math.max(box.top + 12, y - 32);
@@ -677,8 +704,7 @@ function drawSummaryCharts() {
 
 function drawDailyTimeseries() {
   const canvas = el('dailyTimeseriesCanvas');
-  const ctx = canvas.getContext('2d');
-  const w = canvas.width, h = canvas.height;
+  const { ctx, w, h } = getCanvasContext(canvas);
   if (!state.processedDays.length) return drawNoData(ctx, w, h, 'processed CSVを読み込むと、1日のMETs時系列を表示します。');
 
   const selected = el('daySelect').value || '__all__';
@@ -705,14 +731,13 @@ function drawDailyTimeseries() {
   });
 
   ctx.fillStyle = COLORS.navy;
-  ctx.font = '800 19px "Noto Sans JP", sans-serif';
+  ctx.font = chartFont(800, 19);
   ctx.textAlign = 'left';
 }
 
 function drawPersonalAverageComparison() {
   const canvas = el('personalAverageCanvas');
-  const ctx = canvas.getContext('2d');
-  const w = canvas.width, h = canvas.height;
+  const { ctx, w, h } = getCanvasContext(canvas);
   if (!state.processedDays.length) return drawNoData(ctx, w, h, 'processed CSVを読み込むと、個人平均と全平日平均を比較します。');
   clearCanvas(ctx, w, h);
   const { startMinute, endMinute } = getRangeFrom('avgRangeStart', 'avgRangeEnd', 0, 24);
@@ -726,14 +751,13 @@ function drawPersonalAverageComparison() {
   drawLineSeries(ctx, personal, box, yMax, COLORS.orange, startMinute, endMinute, 'mets', 2.8, false, 1);
   drawLineSeries(ctx, classAll, box, yMax, COLORS.navy, startMinute, endMinute, 'mets', 5.2, false, 0.74);
   ctx.fillStyle = COLORS.navy;
-  ctx.font = '800 19px "Noto Sans JP", sans-serif';
+  ctx.font = chartFont(800, 19);
   ctx.textAlign = 'left';
 }
 
 function drawWeekdayMeanChart() {
   const canvas = el('weekdayMeanCanvas');
-  const ctx = canvas.getContext('2d');
-  const w = canvas.width, h = canvas.height;
+  const { ctx, w, h } = getCanvasContext(canvas);
   if (!state.weekdayAverage.length) return drawNoData(ctx, w, h, 'data/weekday_mean.csvを読み込むと、月〜金の平均を表示します。');
   clearCanvas(ctx, w, h);
   const { startMinute, endMinute } = getRangeFrom('weekdayRangeStart', 'weekdayRangeEnd', 8, 20);
@@ -754,7 +778,7 @@ function drawWeekdayMeanChart() {
     drawLineSeries(ctx, series, box, yMax, cfg.color, startMinute, endMinute, 'mets', 2.8, false, 1);
   });
   ctx.fillStyle = COLORS.navy;
-  ctx.font = '800 19px "Noto Sans JP", sans-serif';
+  ctx.font = chartFont(800, 19);
   ctx.textAlign = 'left';
 }
 
