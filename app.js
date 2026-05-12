@@ -1554,7 +1554,7 @@ function drawParamScatterMatrix() {
   }
   const personalPoints = paramPointRows(state.personalParamRows, metrics);
   const n = metrics.length;
-  const margin = { left: 122, top: 38, right: 26, bottom: 96 };
+  const margin = { left: 148, top: 44, right: 32, bottom: 120 };
   const gap = 12;
   const cellW = (w - margin.left - margin.right - gap * (n - 1)) / n;
   const cellH = (h - margin.top - margin.bottom - gap * (n - 1)) / n;
@@ -1570,7 +1570,7 @@ function drawParamScatterMatrix() {
   };
 
   ctx.save();
-  ctx.font = chartFont(800, 12);
+  ctx.font = chartFont(800, 14);
   ctx.lineWidth = 1;
 
   for (let row = 0; row < n; row++) {
@@ -1589,11 +1589,11 @@ function drawParamScatterMatrix() {
         ctx.fillStyle = COLORS.ink;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.font = chartFont(900, 13);
-        ctx.fillText(xMetric.shortLabel, x0 + cellW / 2, y0 + cellH / 2 - 8);
-        ctx.font = chartFont(700, 10);
+        ctx.font = chartFont(900, 14);
+        ctx.fillText(xMetric.shortLabel, x0 + cellW / 2, y0 + cellH / 2 - 9);
+        ctx.font = chartFont(700, 12);
         ctx.fillStyle = COLORS.muted;
-        ctx.fillText(`(${xMetric.unit})`, x0 + cellW / 2, y0 + cellH / 2 + 12);
+        ctx.fillText(`(${xMetric.unit})`, x0 + cellW / 2, y0 + cellH / 2 + 14);
         continue;
       }
 
@@ -1659,7 +1659,7 @@ function drawParamScatterMatrix() {
   }
 
   // Outer numeric ticks and labels. Keep the matrix compact by labelling bottom row and left column.
-  ctx.font = chartFont(700, 10);
+  ctx.font = chartFont(700, 12);
   ctx.fillStyle = COLORS.ink;
   ctx.strokeStyle = COLORS.axis;
   ctx.lineWidth = 1.2;
@@ -1678,9 +1678,9 @@ function drawParamScatterMatrix() {
       ctx.stroke();
       ctx.fillText(fmtNumber(tick, metric.digits), x, y0 + cellH + 8);
     });
-    ctx.font = chartFont(800, 11);
-    ctx.fillText(metric.shortLabel, x0 + cellW / 2, y0 + cellH + 34);
-    ctx.font = chartFont(700, 10);
+    ctx.font = chartFont(800, 14);
+    ctx.fillText(metric.shortLabel, x0 + cellW / 2, y0 + cellH + 42);
+    ctx.font = chartFont(700, 12);
   });
 
   metrics.forEach((metric, row) => {
@@ -1699,10 +1699,10 @@ function drawParamScatterMatrix() {
       ctx.fillText(fmtNumber(tick, metric.digits), x0 - 8, y);
     });
     ctx.save();
-    ctx.translate(x0 - 76, y0 + cellH / 2);
+    ctx.translate(x0 - 94, y0 + cellH / 2);
     ctx.rotate(-Math.PI / 2);
     ctx.textAlign = 'center';
-    ctx.font = chartFont(800, 11);
+    ctx.font = chartFont(800, 14);
     ctx.fillText(metric.shortLabel, 0, 0);
     ctx.restore();
   });
@@ -1959,24 +1959,6 @@ if (el('personalParamInput')) el('personalParamInput').addEventListener('change'
   const input = el('personalParamInput');
   if (input.files && input.files.length) handlePersonalParamFile(input.files[0]);
 });
-
-
-// v35: Redraw canvases after browser width changes.
-// Canvas charts are bitmap-based. If the browser changes the CSS width without
-// redrawing the bitmap, text and axes can appear horizontally or vertically
-// stretched. This debounced resize redraw keeps the canvas drawing buffer and
-// display size synchronized.
-let resizeRedrawTimer = null;
-function scheduleCanvasRedraw() {
-  if (resizeRedrawTimer) window.clearTimeout(resizeRedrawTimer);
-  resizeRedrawTimer = window.setTimeout(() => {
-    updateAll();
-    drawParamCharts();
-  }, 120);
-}
-window.addEventListener('resize', scheduleCanvasRedraw);
-window.addEventListener('orientationchange', scheduleCanvasRedraw);
-
 loadDefaultParamData();
 
 loadDefaultWeekdayAverage().then(updateAll);

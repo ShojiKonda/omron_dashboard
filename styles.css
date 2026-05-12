@@ -739,12 +739,10 @@ canvas {
 }
 
 
-/* v35: prevent canvas text/axis distortion during responsive resizing */
-canvas {
-  display: block;
-  max-width: 100%;
+/* v36: tab 2 title adjustments */
+.section-title.no-number {
+  gap: 0;
 }
-.param-card canvas,
-.param-scatter-section canvas {
-  width: 100%;
+.section-title.no-number > div {
+  min-width: 0;
 }

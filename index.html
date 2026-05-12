@@ -18,7 +18,7 @@
 
     <nav class="tab-nav" aria-label="dashboard tabs">
       <button class="tab-button active" data-tab="dashboardTab">1 個人データ可視化</button>
-      <button class="tab-button" data-tab="paramTab">2 活動量指標</button>
+      <button class="tab-button" data-tab="paramTab">身体活動強度指標</button>
     </nav>
 
     <main class="layout">
@@ -224,11 +224,10 @@
 
       <div id="paramTab" class="tab-panel">
         <section class="panel chart-panel" id="activity-parameters">
-          <div class="section-title">
-            <span>2</span>
+          <div class="section-title no-number">
             <div>
-              <h2>活動量指標の可視化</h2>
-              <p>クラス全体の活動量指標分布と、各個人の指標分布を比較します。</p>
+              <h2>身体活動強度指標の分布</h2>
+              <p>クラス全体の身体活動強度指標分布と、各個人の指標分布を比較します。</p>
               <p>既定では data/physical_activity_param_IDremove.csv を全体分布として自動読み込みします。</p>
             </div>
           </div>
@@ -289,7 +288,7 @@
           <section class="param-scatter-section">
             <div class="param-scatter-title">
               <div>
-                <h3>座位行動・中高強度活動の関連</h3>
+                <h3>座位行動・中高強度活動強度の関連</h3>
                 <p>座位行動3変数と中高強度活動3変数の関係を散布図マトリクスで表示します。</p>
               </div>
               <div class="legend param-scatter-legend">
