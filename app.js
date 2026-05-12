@@ -454,7 +454,7 @@ function updateAll() {
   drawDailyTimeseries();
   drawActivityHeatmap();
   drawParamCharts();
-  drawPracticeIntensity();
+  drawPracticeAll();
   drawPersonalAverageComparison();
   drawWeekdayMeanChart();
 }
@@ -1974,7 +1974,7 @@ function drawPracticeIntensity() {
   const allValues = [];
   summaryPoints.forEach((row) => row.forEach((p) => { if (Number.isFinite(p.mets) && p.mets >= 0) allValues.push(p.mets); }));
   personalPoints.forEach((p) => { if (Number.isFinite(p.mets) && p.mets >= 0) allValues.push(p.mets); });
-  const yMax = Math.max(5, Math.ceil((allValues.length ? Math.max(...allValues) : 5) * 1.08));
+  const yMax = Math.max(5, Math.ceil(maxFiniteValue(allValues, 5) * 1.08));
   const box = chartBox(w, h, 92, 44, 40, 88);
   drawPracticeGrid(ctx, box, yMax, startSecond, endSecond);
   summaryPoints.forEach((row) => drawPracticeSeries(ctx, row, box, yMax, startSecond, endSecond, 'rgba(203, 213, 225, 0.34)', 1.1, 0.55));
@@ -1990,12 +1990,353 @@ function drawPracticeIntensity() {
   }
 }
 
+
+
+function maxFiniteValue(values, fallback = NaN) {
+  let maxValue = -Infinity;
+  values.forEach((v) => {
+    if (Number.isFinite(v) && v > maxValue) maxValue = v;
+  });
+  return maxValue === -Infinity ? fallback : maxValue;
+}
+
+function drawPracticeAll() {
+  drawPracticeIntensity();
+  drawPracticeDensity();
+  drawPracticeHeatmap();
+}
+
+function getPracticeBounds(summary = state.practiceSummary) {
+  if (!summary || !summary.times || !summary.times.length) return { startSecond: 0, endSecond: 1 };
+  return {
+    startSecond: Math.min(...summary.times),
+    endSecond: Math.max(...summary.times),
+  };
+}
+
+function practiceSummaryRowsAsPoints(summary = state.practiceSummary) {
+  if (!summary || !summary.times || !summary.rows) return [];
+  return summary.rows.map((row) => summary.times.map((second, i) => ({
+    second,
+    mets: row.values[i],
+  })));
+}
+
+function practicePersonalPointsOnSummaryTimes(summary = state.practiceSummary, personal = state.practicePersonal) {
+  if (!summary || !summary.times || !personal || !personal.series) return [];
+  const personalMap = new Map(personal.series.map((row) => [row.second, row.mets]));
+  return summary.times.map((second) => ({ second, mets: personalMap.get(second) }));
+}
+
+function validPracticeMets(value) {
+  return Number.isFinite(value) && value > 0 && value !== -1;
+}
+
+function practiceValuesFromPoints(points) {
+  return points.map((p) => p.mets).filter(validPracticeMets);
+}
+
+function practiceMeanFromValues(values) {
+  const valid = values.filter(validPracticeMets);
+  return valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : NaN;
+}
+
+function collectPracticeValues(summary = state.practiceSummary, personal = state.practicePersonal) {
+  const classValues = [];
+  practiceSummaryRowsAsPoints(summary).forEach((row) => {
+    row.forEach((p) => {
+      if (validPracticeMets(p.mets)) classValues.push(p.mets);
+    });
+  });
+  const personalValues = practiceValuesFromPoints(practicePersonalPointsOnSummaryTimes(summary, personal));
+  return { classValues, personalValues };
+}
+
+function smoothHistogramDensity(values, xMax, bins = 80) {
+  const valid = values.filter(validPracticeMets);
+  const dx = xMax / bins;
+  const counts = Array.from({ length: bins }, () => 0);
+  valid.forEach((v) => {
+    const idx = Math.min(bins - 1, Math.max(0, Math.floor(v / dx)));
+    counts[idx] += 1;
+  });
+  const kernel = [1, 2, 3, 4, 3, 2, 1];
+  const ksum = kernel.reduce((a, b) => a + b, 0);
+  const smoothed = counts.map((_, i) => {
+    let s = 0;
+    for (let k = 0; k < kernel.length; k++) {
+      const j = i + k - Math.floor(kernel.length / 2);
+      if (j >= 0 && j < counts.length) s += counts[j] * kernel[k];
+    }
+    return s / ksum;
+  });
+  const total = valid.length || 1;
+  return smoothed.map((c, i) => ({
+    x: (i + 0.5) * dx,
+    density: c / total / dx,
+  }));
+}
+
+function drawDensityGrid(ctx, box, xMax, yMax) {
+  ctx.save();
+  ctx.strokeStyle = COLORS.grid;
+  ctx.lineWidth = 1.25;
+  ctx.fillStyle = COLORS.muted;
+  ctx.font = chartFont(700, 15);
+
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  const yStep = yMax > 0.5 ? 0.2 : 0.1;
+  for (let v = 0; v <= yMax + 1e-6; v += yStep) {
+    const y = box.bottom - (v / Math.max(1e-9, yMax)) * box.height;
+    ctx.beginPath();
+    ctx.moveTo(box.left, y);
+    ctx.lineTo(box.right, y);
+    ctx.stroke();
+    ctx.fillText(v.toFixed(1), box.left - 10, y);
+  }
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  const xStep = xMax <= 6 ? 1 : 2;
+  for (let v = 0; v <= xMax + 1e-6; v += xStep) {
+    const x = box.left + (v / xMax) * box.width;
+    ctx.beginPath();
+    ctx.moveTo(x, box.top);
+    ctx.lineTo(x, box.bottom);
+    ctx.stroke();
+    ctx.fillText(v.toFixed(1), x, box.bottom + 14);
+  }
+
+  ctx.strokeStyle = COLORS.axis;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(box.left, box.bottom);
+  ctx.lineTo(box.right, box.bottom);
+  ctx.moveTo(box.left, box.top);
+  ctx.lineTo(box.left, box.bottom);
+  ctx.stroke();
+
+  ctx.fillStyle = COLORS.ink;
+  ctx.font = chartFont(800, 17);
+  ctx.textBaseline = 'middle';
+  ctx.save();
+  ctx.translate(box.left - 62, box.top + box.height / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('密度', 0, 0);
+  ctx.restore();
+  ctx.fillText('METs', box.left + box.width / 2, box.bottom + 58);
+  ctx.restore();
+}
+
+function drawDensityLine(ctx, density, box, xMax, yMax, color, width = 2.4, alpha = 1) {
+  if (!density.length) return;
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = alpha;
+  ctx.lineWidth = width;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  density.forEach((p, i) => {
+    const x = box.left + (p.x / xMax) * box.width;
+    const y = box.bottom - (p.density / Math.max(1e-9, yMax)) * box.height;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawPracticeDensity() {
+  const canvas = el('practiceDensityCanvas');
+  if (!canvas) return;
+  const { ctx, w, h } = getCanvasContext(canvas);
+  clearCanvas(ctx, w, h);
+
+  const summary = state.practiceSummary;
+  if (!summary || !summary.times.length || !summary.rows.length) {
+    return drawNoData(ctx, w, h, '全員時系列CSVを読み込むと表示します。');
+  }
+
+  const { classValues, personalValues } = collectPracticeValues();
+  if (!classValues.length) return drawNoData(ctx, w, h, '有効なMETsデータがありません。');
+
+  const maxValue = maxFiniteValue(classValues.concat(personalValues), 5);
+  const xMax = Math.max(5, Math.ceil(maxValue));
+  const classDensity = smoothHistogramDensity(classValues, xMax, 90);
+  const personalDensity = smoothHistogramDensity(personalValues, xMax, 90);
+  const yMax = Math.max(
+    0.1,
+    Math.ceil(Math.max(
+      ...classDensity.map((p) => p.density),
+      ...(personalDensity.length ? personalDensity.map((p) => p.density) : [0])
+    ) * 10) / 10
+  );
+
+  const box = chartBox(w, h, 92, 44, 42, 88);
+  drawDensityGrid(ctx, box, xMax, yMax);
+  drawDensityLine(ctx, classDensity, box, xMax, yMax, 'rgba(203, 213, 225, 0.75)', 2.4, 0.9);
+  if (personalValues.length) {
+    drawDensityLine(ctx, personalDensity, box, xMax, yMax, COLORS.amber, 3.2, 1);
+  }
+}
+
+function drawPracticeHeatmap() {
+  const canvas = el('practiceHeatmapCanvas');
+  if (!canvas) return;
+  const { ctx, w, h } = getCanvasContext(canvas);
+  clearCanvas(ctx, w, h);
+
+  const summary = state.practiceSummary;
+  if (!summary || !summary.times.length || !summary.rows.length) {
+    return drawNoData(ctx, w, h, '全員時系列CSVを読み込むと表示します。');
+  }
+
+  const { startSecond, endSecond } = getPracticeBounds(summary);
+  const timeSpan = Math.max(1, endSecond - startSecond);
+  const colorUpper = 3;
+  let rows = summary.rows.map((row, index) => {
+    const values = summary.times.map((second, i) => ({ second, mets: row.values[i] }));
+    const score = practiceMeanFromValues(values.map((p) => p.mets));
+    return { label: row.label || `No. ${index + 1}`, values, score, index };
+  }).sort((a, b) => b.score - a.score || a.index - b.index);
+
+  const colorbarWidth = 28;
+  const colorbarGap = 18;
+  const box = {
+    left: 78,
+    top: 34,
+    right: w - 86 - colorbarWidth - colorbarGap,
+    bottom: h - 72,
+  };
+  box.width = box.right - box.left;
+  box.height = box.bottom - box.top;
+
+  const nrow = rows.length;
+  const cellH = box.height / Math.max(1, nrow);
+  const step = Math.max(1, Math.floor(summary.times.length / Math.max(1, box.width)));
+
+  rows.forEach((row, r) => {
+    const y = box.top + r * cellH;
+    for (let i = 0; i < summary.times.length; i += step) {
+      const second = summary.times[i];
+      if (second < startSecond || second > endSecond) continue;
+      let value = NaN;
+      for (let k = 0; k < step && i + k < summary.times.length; k++) {
+        const v = row.values[i + k]?.mets;
+        if (validPracticeMets(v)) value = Number.isFinite(value) ? Math.max(value, v) : v;
+      }
+      const x = box.left + ((second - startSecond) / timeSpan) * box.width;
+      const nextSecond = summary.times[Math.min(summary.times.length - 1, i + step)] ?? second + 10;
+      const nextX = box.left + ((nextSecond - startSecond) / timeSpan) * box.width;
+      ctx.fillStyle = heatmapJetColor(Number.isFinite(value) ? Math.min(value, colorUpper) : NaN, colorUpper);
+      ctx.fillRect(x, y, Math.max(1, nextX - x + 0.5), Math.max(1, Math.ceil(cellH) + 0.5));
+    }
+  });
+
+  ctx.strokeStyle = COLORS.axis;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(box.left, box.top, box.width, box.height);
+
+  const personalPoints = practicePersonalPointsOnSummaryTimes(summary, state.practicePersonal);
+  const personalScore = practiceMeanFromValues(personalPoints.map((p) => p.mets));
+  if (Number.isFinite(personalScore)) {
+    const rank = rows.filter((row) => row.score > personalScore).length;
+    const y = box.top + Math.min(Math.max(rank, 0), nrow) * cellH;
+    ctx.save();
+    ctx.strokeStyle = COLORS.amber;
+    ctx.fillStyle = COLORS.amber;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(box.left, y);
+    ctx.lineTo(box.right, y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(box.left - 10, y);
+    ctx.lineTo(box.left - 2, y - 6);
+    ctx.lineTo(box.left - 2, y + 6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.font = chartFont(800, 14);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('個人位置', box.left, Math.max(box.top + 14, y - 4));
+    ctx.restore();
+  }
+
+  ctx.save();
+  ctx.strokeStyle = COLORS.axis;
+  ctx.fillStyle = COLORS.ink;
+  ctx.lineWidth = 1.5;
+  ctx.font = chartFont(800, 15);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  const span = endSecond - startSecond;
+  let tickStep = 600;
+  if (span > 2 * 3600) tickStep = 1800;
+  if (span > 6 * 3600) tickStep = 3600;
+  if (span <= 30 * 60) tickStep = 300;
+  const firstTick = Math.ceil(startSecond / tickStep) * tickStep;
+  for (let t = firstTick; t <= endSecond + 1e-6; t += tickStep) {
+    const x = box.left + ((t - startSecond) / timeSpan) * box.width;
+    ctx.beginPath();
+    ctx.moveTo(x, box.bottom);
+    ctx.lineTo(x, box.bottom + 8);
+    ctx.stroke();
+    ctx.fillText(secondToTime(t), x, box.bottom + 14);
+  }
+  ctx.fillText('時刻', box.left + box.width / 2, box.bottom + 52);
+  ctx.save();
+  ctx.translate(box.left - 52, box.top + box.height / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textBaseline = 'middle';
+  ctx.fillText('全員データ', 0, 0);
+  ctx.restore();
+
+  const cX = box.right + colorbarGap;
+  const cY = box.top;
+  const cH = box.height;
+  for (let i = 0; i < cH; i++) {
+    const value = colorUpper * (1 - i / Math.max(1, cH - 1));
+    ctx.fillStyle = heatmapJetColor(value, colorUpper);
+    ctx.fillRect(cX, cY + i, colorbarWidth, 1);
+  }
+  ctx.strokeStyle = COLORS.axis;
+  ctx.strokeRect(cX, cY, colorbarWidth, cH);
+  ctx.fillStyle = COLORS.ink;
+  ctx.font = chartFont(800, 15);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  [0, colorUpper / 2, colorUpper].forEach((v) => {
+    const y = cY + (1 - v / colorUpper) * cH;
+    ctx.beginPath();
+    ctx.moveTo(cX + colorbarWidth, y);
+    ctx.lineTo(cX + colorbarWidth + 6, y);
+    ctx.stroke();
+    ctx.fillText(v.toFixed(1), cX + colorbarWidth + 10, y);
+  });
+  ctx.save();
+  ctx.translate(cX + colorbarWidth + 52, cY + cH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center';
+  ctx.fillText('METs（上限3.0）', 0, 0);
+  ctx.restore();
+  ctx.restore();
+
+  ctx.fillStyle = COLORS.muted;
+  ctx.font = chartFont(700, 14);
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`${nrow} rows`, box.left - 10, box.top + 12);
+}
+
 async function handlePracticeSummaryFile(file) {
   const text = await readTextFile(file);
   state.practiceSummary = parsePracticeSummary(text, file.name);
   const nameBox = el('practiceSummaryFileName');
   if (nameBox) nameBox.textContent = `${file.name} / ${state.practiceSummary.rows.length}名`;
-  drawPracticeIntensity();
+  drawPracticeAll();
 }
 
 async function handlePracticePersonalFile(file) {
@@ -2003,7 +2344,7 @@ async function handlePracticePersonalFile(file) {
   state.practicePersonal = parsePracticePersonal(text, file.name);
   const nameBox = el('practicePersonalFileName');
   if (nameBox) nameBox.textContent = file.name;
-  drawPracticeIntensity();
+  drawPracticeAll();
 }
 
 async function loadDefaultPracticeSummary() {
@@ -2012,7 +2353,7 @@ async function loadDefaultPracticeSummary() {
     state.practiceSummary = parsePracticeSummary(text, 'data/summary_timeseries_10SEC.csv');
     const nameBox = el('practiceSummaryFileName');
     if (nameBox) nameBox.textContent = `data/summary_timeseries_10SEC.csv / ${state.practiceSummary.rows.length}名`;
-    drawPracticeIntensity();
+    drawPracticeAll();
   } catch (err) {
     console.warn(err);
   }
@@ -2147,7 +2488,7 @@ function setupTabs() {
       setTimeout(() => {
         updateAll();
         drawParamCharts();
-        drawPracticeIntensity();
+        drawPracticeAll();
       }, 0);
     });
   });
@@ -2181,7 +2522,7 @@ window.addEventListener('resize', () => {
   resizeTimer = setTimeout(() => {
     updateAll();
     drawParamCharts();
-    drawPracticeIntensity();
+    drawPracticeAll();
   }, 160);
 });
 

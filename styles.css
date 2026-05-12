@@ -759,3 +759,21 @@ canvas {
   width: 100%;
   height: auto;
 }
+
+
+/* v39: tab 3 density and practice heatmap */
+.practice-subchart {
+  margin-top: 22px;
+}
+#practiceDensityCanvas,
+#practiceHeatmapCanvas {
+  width: 100%;
+  height: auto;
+}
+.practice-rank-marker {
+  display: inline-block;
+  width: 34px;
+  height: 5px;
+  border-radius: 3px;
+  background: #facc15;
+}

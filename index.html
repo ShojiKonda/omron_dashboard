@@ -17,7 +17,7 @@
     </header>
 
     <nav class="tab-nav" aria-label="dashboard tabs">
-      <button class="tab-button active" data-tab="dashboardTab">1 個人データ可視化</button>
+      <button class="tab-button active" data-tab="dashboardTab">個人データ可視化</button>
       <button class="tab-button" data-tab="paramTab">身体活動強度指標</button>
       <button class="tab-button" data-tab="practiceTab">運動中の身体活動強度</button>
     </nav>
@@ -328,6 +328,26 @@
             <span id="practiceRangeNote">表示範囲: 全員時系列CSVと同じ時刻範囲</span>
           </div>
           <canvas id="practiceIntensityCanvas" width="1180" height="540" aria-label="exercise intensity 10-second time series"></canvas>
+          <article class="mini-chart summary-wide practice-subchart">
+            <h3>活動強度ヒストグラム</h3>
+            <p class="chart-note">全員分の活動強度分布をグレー線、アップロードした個人データを黄色線で表示します。</p>
+            <div class="legend">
+              <span><i class="line practice-class-line"></i>全員データ</span>
+              <span><i class="line practice-personal-line"></i>個人データ</span>
+            </div>
+            <canvas id="practiceDensityCanvas" width="1180" height="440" aria-label="exercise intensity density"></canvas>
+          </article>
+
+          <article class="mini-chart summary-wide practice-subchart">
+            <h3>多人数時系列CSVのカラーマップ</h3>
+            <p class="chart-note">匿名化した全員分の10秒METs時系列を平均METsが高い順に並べます。個人データをアップロードすると、平均METs順位上の位置を黄色線で示します。</p>
+            <div class="legend">
+              <span>並べ替え: 平均METsが高い順</span>
+              <span>色: METs（上限3.0）</span>
+              <span><i class="practice-rank-marker"></i>個人データの位置</span>
+            </div>
+            <canvas id="practiceHeatmapCanvas" width="1180" height="560" aria-label="exercise intensity heatmap"></canvas>
+          </article>
         </section>
       </div>
 
