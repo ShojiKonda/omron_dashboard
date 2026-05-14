@@ -1152,6 +1152,7 @@ const PARAM_DASHBOARD_METRICS = [
     label: '計測日数',
     unit: '日',
     digits: 0,
+    integerBins: true,
     values: (rows) => measurementDayCountsByPerson(rows),
   },
   {
@@ -1454,25 +1455,58 @@ function drawParamDistribution(metric) {
     return drawNoData(ctx, w, h, '全体指標CSVを読み込むと分布を表示します。');
   }
   const personalValues = metricValues(state.personalParamRows, metric);
+
   let minV = Math.min(...classValues, ...(personalValues.length ? personalValues : classValues));
   let maxV = Math.max(...classValues, ...(personalValues.length ? personalValues : classValues));
-  if (Math.abs(maxV - minV) < 1e-9) {
-    const pad = Math.max(1, Math.abs(maxV) * 0.05);
-    minV -= pad;
-    maxV += pad;
+
+  const useIntegerBins = metric.integerBins === true;
+  let span;
+  let bins;
+  let counts;
+  let binCenters = [];
+  let xMin;
+  let xMax;
+
+  if (useIntegerBins) {
+    const dayValues = classValues
+      .map((v) => Math.round(v))
+      .filter((v) => Number.isFinite(v));
+    const personalDayValues = personalValues
+      .map((v) => Math.round(v))
+      .filter((v) => Number.isFinite(v));
+    const allDayValues = dayValues.concat(personalDayValues.length ? personalDayValues : dayValues);
+    const minDay = Math.floor(Math.min(...allDayValues));
+    const maxDay = Math.ceil(Math.max(...allDayValues));
+    binCenters = [];
+    for (let d = minDay; d <= maxDay; d++) binCenters.push(d);
+    counts = binCenters.map((day) => dayValues.filter((v) => v === day).length);
+    xMin = minDay - 0.5;
+    xMax = maxDay + 0.5;
+    minV = xMin;
+    maxV = xMax;
+    span = Math.max(1e-9, xMax - xMin);
+    bins = binCenters.length;
+  } else {
+    if (Math.abs(maxV - minV) < 1e-9) {
+      const pad = Math.max(1, Math.abs(maxV) * 0.05);
+      minV -= pad;
+      maxV += pad;
+    }
+    span = Math.max(1e-9, maxV - minV);
+    bins = Math.min(22, Math.max(8, Math.ceil(Math.sqrt(classValues.length))));
+    counts = Array.from({ length: bins }, () => 0);
+    classValues.forEach((v) => {
+      let bi = Math.floor(((v - minV) / span) * bins);
+      if (bi >= bins) bi = bins - 1;
+      if (bi < 0) bi = 0;
+      counts[bi]++;
+    });
   }
-  const span = Math.max(1e-9, maxV - minV);
+
   const box = chartBox(w, h, 72, 42, 24, 92);
-  const bins = Math.min(22, Math.max(8, Math.ceil(Math.sqrt(classValues.length))));
-  const counts = Array.from({ length: bins }, () => 0);
-  classValues.forEach((v) => {
-    let bi = Math.floor(((v - minV) / span) * bins);
-    if (bi >= bins) bi = bins - 1;
-    if (bi < 0) bi = 0;
-    counts[bi]++;
-  });
   const yMax = Math.max(1, Math.ceil(Math.max(...counts) * 1.18));
   const yStep = Math.max(1, Math.ceil(yMax / 4));
+
   ctx.save();
   ctx.strokeStyle = COLORS.grid;
   ctx.fillStyle = COLORS.muted;
@@ -1488,14 +1522,27 @@ function drawParamDistribution(metric) {
     ctx.fillText(fmtNumber(v), box.left - 10, y);
   }
 
-  const gap = 3;
-  const barW = Math.max(2, (box.width - gap * (bins - 1)) / bins);
-  counts.forEach((c, i) => {
-    const x = box.left + i * (barW + gap);
-    const barH = (c / yMax) * box.height;
-    ctx.fillStyle = 'rgba(45, 212, 191, 0.86)';
-    ctx.fillRect(x, box.bottom - barH, barW, barH);
-  });
+  const xOf = (value) => box.left + ((value - minV) / span) * box.width;
+
+  if (useIntegerBins) {
+    const barW = Math.max(8, Math.min(64, box.width / Math.max(1, bins) * 0.72));
+    counts.forEach((c, i) => {
+      const center = binCenters[i];
+      const x = xOf(center) - barW / 2;
+      const barH = (c / yMax) * box.height;
+      ctx.fillStyle = 'rgba(45, 212, 191, 0.86)';
+      ctx.fillRect(x, box.bottom - barH, barW, barH);
+    });
+  } else {
+    const gap = 3;
+    const barW = Math.max(2, (box.width - gap * (bins - 1)) / bins);
+    counts.forEach((c, i) => {
+      const x = box.left + i * (barW + gap);
+      const barH = (c / yMax) * box.height;
+      ctx.fillStyle = 'rgba(45, 212, 191, 0.86)';
+      ctx.fillRect(x, box.bottom - barH, barW, barH);
+    });
+  }
 
   ctx.strokeStyle = COLORS.axis;
   ctx.lineWidth = 2;
@@ -1506,8 +1553,6 @@ function drawParamDistribution(metric) {
   ctx.lineTo(box.left, box.bottom);
   ctx.stroke();
 
-  const xOf = (value) => box.left + ((value - minV) / span) * box.width;
-
   // X-axis numeric ticks
   ctx.fillStyle = COLORS.ink;
   ctx.strokeStyle = COLORS.axis;
@@ -1515,7 +1560,7 @@ function drawParamDistribution(metric) {
   ctx.font = chartFont(700, 12);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  const ticks = linearTicks(minV, maxV, 5);
+  const ticks = useIntegerBins ? binCenters : linearTicks(minV, maxV, 5);
   ticks.forEach((tick) => {
     const x = xOf(tick);
     ctx.beginPath();
@@ -1573,7 +1618,6 @@ function drawParamDistribution(metric) {
   ctx.restore();
   ctx.restore();
 }
-
 
 function drawParamScatterMatrix() {
   const canvas = el('paramScatterMatrixCanvas');
