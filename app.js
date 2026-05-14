@@ -127,7 +127,7 @@ function updateDailyLegend(days, selected) {
   const legend = el('dailyLegend');
   if (!legend) return;
   if (!days.length) {
-    legend.innerHTML = '<span>CSVを読み込むと、日付ごとの凡例を表示</span>';
+    legend.innerHTML = '<span>CSVを読み込むと、日付ごとの凡例を表示します。</span>';
     return;
   }
   const items = days.map((day, idx) => {
@@ -482,7 +482,7 @@ function updateCards() {
 function updateDailyTable() {
   const body = el('dailyTableBody');
   if (!state.summaryRows.length) {
-    body.innerHTML = '<tr><td colspan="5" class="empty-cell">CSVを読み込むと、日別サマリーを表示</td></tr>';
+    body.innerHTML = '<tr><td colspan="5" class="empty-cell">CSVを読み込むと、日別サマリーを表示します。</td></tr>';
     return;
   }
   body.innerHTML = state.summaryRows.map((r) => `
@@ -837,14 +837,14 @@ function drawBarChart(canvasId, rows, valueKey, color, unit, emptyText, referenc
 
 function drawSummaryCharts() {
   const rows = getEligibleSummaryRows();
-  drawBarChart('summaryStepsCanvas', rows, 'steps', COLORS.green, '歩', '装着時間180分以上の日があると歩数を表示', state.summaryAverage.aveStep, '全員平均');
-  drawBarChart('summaryExerciseCanvas', rows, 'exerciseEx', COLORS.purple, 'Ex', '装着時間180分以上の日があるとExを表示', state.summaryAverage.aveExercise, '全員平均');
+  drawBarChart('summaryStepsCanvas', rows, 'steps', COLORS.green, '歩', '装着時間180分以上の日があると歩数を表示します。', state.summaryAverage.aveStep, '全員平均');
+  drawBarChart('summaryExerciseCanvas', rows, 'exerciseEx', COLORS.purple, 'Ex', '装着時間180分以上の日があるとExを表示します。', state.summaryAverage.aveExercise, '全員平均');
 }
 
 function drawDailyTimeseries() {
   const canvas = el('dailyTimeseriesCanvas');
   const { ctx, w, h } = getCanvasContext(canvas);
-  if (!state.processedDays.length) return drawNoData(ctx, w, h, 'processed CSVを読み込むと、1日のMETs時系列を表示');
+  if (!state.processedDays.length) return drawNoData(ctx, w, h, 'processed CSVを読み込むと、1日のMETs時系列を表示します。');
 
   const selected = el('daySelect').value || '__all__';
   const { startMinute, endMinute } = getTimeRange();
@@ -1126,7 +1126,7 @@ function drawActivityHeatmap() {
   drawHeatmapCanvas(
     'activityHeatmapCanvas',
     getHeatmapRows(),
-    '多人数時系列CSVを読み込むと、活動パターンカラーマップを表示',
+    '多人数時系列CSVを読み込むと、活動パターンカラーマップを表示します。',
     '',
     'heatmapSort'
   );
@@ -1137,7 +1137,7 @@ function drawProcessedHeatmap() {
   drawHeatmapCanvas(
     'processedHeatmapCanvas',
     getProcessedHeatmapRows(),
-    '各日の詳細データ（*_processed.csv）を読み込むと、各個人データから作成したカラーマップを表示',
+    '各日の詳細データ（*_processed.csv）を読み込むと、各個人CSVから作成したカラーマップを表示します。',
     '',
     'processedHeatmapSort'
   );
@@ -1281,7 +1281,38 @@ function dateOrderValue(row) {
   return year * 10000 + m * 100 + d;
 }
 
+function paramRowId(row) {
+  const candidates = ['ID', 'id', 'Id', 'anonymous_ID', 'anonymous_id', 'participant_id'];
+  for (const key of candidates) {
+    if (row[key] !== undefined && row[key] !== null) {
+      const value = String(row[key]).trim();
+      if (value !== '') return value;
+    }
+  }
+  return '';
+}
+
 function measurementDayCountsByPerson(rows) {
+  const rowsWithId = rows
+    .map((row) => ({ row, id: paramRowId(row) }))
+    .filter((item) => item.id !== '');
+
+  if (rowsWithId.length) {
+    const byId = new Map();
+    rowsWithId.forEach(({ row, id }) => {
+      if (!byId.has(id)) byId.set(id, { dateKeys: new Set(), rowCount: 0 });
+      const item = byId.get(id);
+      item.rowCount += 1;
+      const order = dateOrderValue(row);
+      if (Number.isFinite(order)) item.dateKeys.add(String(order));
+    });
+    return Array.from(byId.values())
+      .map((item) => item.dateKeys.size || item.rowCount)
+      .filter((count) => Number.isFinite(count) && count > 0);
+  }
+
+  // Fallback for old ID-removed files:
+  // a new participant starts when the date sequence goes backward.
   const counts = [];
   let currentCount = 0;
   let previousOrder = NaN;
@@ -1420,7 +1451,7 @@ function drawParamDistribution(metric) {
   clearCanvas(ctx, w, h);
   const classValues = metricValues(state.paramRows, metric);
   if (!classValues.length) {
-    return drawNoData(ctx, w, h, '全体データを読み込むと分布を表示');
+    return drawNoData(ctx, w, h, '全体指標CSVを読み込むと分布を表示します。');
   }
   const personalValues = metricValues(state.personalParamRows, metric);
   let minV = Math.min(...classValues, ...(personalValues.length ? personalValues : classValues));
@@ -1553,7 +1584,7 @@ function drawParamScatterMatrix() {
   const metrics = PARAM_RELATION_METRICS;
   const classPoints = paramPointRows(state.paramRows, metrics);
   if (!classPoints.length) {
-    return drawNoData(ctx, w, h, '全体データを読み込むと散布図を表示');
+    return drawNoData(ctx, w, h, '全体指標CSVを読み込むと散布図を表示します。');
   }
   const personalPoints = paramPointRows(state.personalParamRows, metrics);
   const n = metrics.length;
@@ -1719,13 +1750,24 @@ function drawParamCharts() {
 }
 
 async function loadDefaultParamData() {
-  try {
-    const text = await fetchText('data/physical_activity_param_IDremove.csv');
-    state.paramRows = parseParamCsv(text);
-    if (el('paramFileName')) el('paramFileName').textContent = `data/physical_activity_param_IDremove.csv / ${state.paramRows.length}行`;
-  } catch (err) {
-    console.warn('parameter csv could not be loaded', err);
+  const candidates = [
+    'data/physical_activity_param_anonymized.csv',
+    'data/physical_activity_param_IDremove.csv',
+  ];
+
+  for (const path of candidates) {
+    try {
+      const text = await fetchText(path);
+      state.paramRows = parseParamCsv(text);
+      if (el('paramFileName')) el('paramFileName').textContent = `${path} / ${state.paramRows.length}行`;
+      drawParamCharts();
+      return;
+    } catch (err) {
+      console.warn(`${path} could not be loaded`, err);
+    }
   }
+
+  console.warn('parameter csv could not be loaded');
   drawParamCharts();
 }
 
@@ -1746,38 +1788,32 @@ async function handlePersonalParamFile(file) {
 
 function drawPersonalAverageComparison() {
   const canvas = el('personalAverageCanvas');
-  if (!canvas) return;
   const { ctx, w, h } = getCanvasContext(canvas);
-  if (!state.processedDays.length || !state.weekdayAverage.length) {
-    return drawNoData(ctx, w, h, '各日の詳細データと全体平均データを読み込むと、個人平均と全体平均を比較');
-  }
+  if (!state.processedDays.length) return drawNoData(ctx, w, h, 'processed CSVを読み込むと、個人と全体の活動パターンを比較します。');
   clearCanvas(ctx, w, h);
 
   const startMinute = FIXED_DISPLAY_START_MINUTE;
   const endMinute = FIXED_DISPLAY_END_MINUTE;
-  const personalAverage = computePersonalAverage();
-  const classAverage = state.weekdayAverage.map((r) => ({
-    minute: r.minute,
-    mets: r.all,
-  }));
+  const personal = computePersonalAverage();
+  const classAll = state.weekdayAverage.map((r) => ({ minute: r.minute, mets: r.all }));
+  const personalPattern = makeRelativeActivityPattern(personal, 'mets', startMinute, endMinute);
+  const classPattern = makeRelativeActivityPattern(classAll, 'mets', startMinute, endMinute);
 
-  const yMax = 6;
+  const yMax = 100;
   const box = chartBox(w, h, 104, 42, 34, 92);
   const spanHours = (endMinute - startMinute) / 60;
   const hourStep = spanHours <= 6 ? 1 : spanHours <= 12 ? 2 : 4;
   drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep, {
     yMin: 0,
-    yGridStep: 1,
-    yLabelStep: 1,
-    yDigits: 1,
-    yAxisLabel: 'METs',
+    yGridStep: 20,
+    yLabelStep: 20,
+    yDigits: 0,
+    yAxisLabel: '相対活動レベル',
     xAxisLabel: '時刻',
   });
 
-  // 個人平均は先に描画する。全体平均は後から太めに描画して前面に出す。
-  drawLineSeries(ctx, personalAverage, box, yMax, COLORS.orange, startMinute, endMinute, 'mets', 2.6, false, 0.95, 0);
-  drawLineSeries(ctx, classAverage, box, yMax, COLORS.navy, startMinute, endMinute, 'mets', 4.0, false, 0.82, 0);
-
+  drawLineSeries(ctx, personalPattern, box, yMax, COLORS.orange, startMinute, endMinute, 'level', 2.8, false, 0.95, 0);
+  drawLineSeries(ctx, classPattern, box, yMax, COLORS.navy, startMinute, endMinute, 'level', 4.2, false, 0.82, 0);
   ctx.fillStyle = COLORS.navy;
   ctx.font = chartFont(800, 19);
   ctx.textAlign = 'left';
@@ -1786,7 +1822,7 @@ function drawPersonalAverageComparison() {
 function drawWeekdayMeanChart() {
   const canvas = el('weekdayMeanCanvas');
   const { ctx, w, h } = getCanvasContext(canvas);
-  if (!state.weekdayAverage.length) return drawNoData(ctx, w, h, 'data/weekday_mean.csvを読み込むと、月〜金の平均を表示');
+  if (!state.weekdayAverage.length) return drawNoData(ctx, w, h, 'data/weekday_mean.csvを読み込むと、月〜金の平均を表示します。');
   clearCanvas(ctx, w, h);
   const startMinute = FIXED_DISPLAY_START_MINUTE;
   const endMinute = FIXED_DISPLAY_END_MINUTE;
@@ -1967,7 +2003,7 @@ function drawPracticeIntensity() {
   clearCanvas(ctx, w, h);
   const summary = state.practiceSummary;
   if (!summary || !summary.times.length || !summary.rows.length) {
-    return drawNoData(ctx, w, h, '全体の時系列データを読み込むと表示');
+    return drawNoData(ctx, w, h, '全員時系列CSVを読み込むと表示します。');
   }
   const startSecond = Math.min(...summary.times);
   const endSecond = Math.max(...summary.times);
@@ -2162,7 +2198,7 @@ function drawPracticeDensity() {
 
   const summary = state.practiceSummary;
   if (!summary || !summary.times.length || !summary.rows.length) {
-    return drawNoData(ctx, w, h, '全体の時系列データを読み込むと表示');
+    return drawNoData(ctx, w, h, '全員時系列CSVを読み込むと表示します。');
   }
 
   const { classValues, personalValues } = collectPracticeValues();
@@ -2203,7 +2239,7 @@ function drawPracticeHeatmap() {
 
   const summary = state.practiceSummary;
   if (!summary || !summary.times.length || !summary.rows.length) {
-    return drawNoData(ctx, w, h, '全体の時系列データを読み込むと表示');
+    return drawNoData(ctx, w, h, '全員時系列CSVを読み込むと表示します。');
   }
 
   const { startSecond, endSecond } = getPracticeBounds(summary);

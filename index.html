@@ -132,15 +132,15 @@
         <div class="section-title">
           <span>5</span>
           <div>
-            <h2>個人平均と全体平均の比較</h2>
-            <p>個人平均は日数が少ないためピークが残りやすく、全体平均は多人数の平均のため波形が平滑化される</p>
-            <p>活動強度の大小でなく活動が高まりやすい時間帯などのパターンに注目する</p>
+            <h2>個人と全体の活動パターン比較</h2>
+            <p>METsの絶対値ではなく、活動が高まりやすい時間帯のパターンを比較</p>
+            <p>表示範囲は08:00〜20:00、縦軸は相対活動レベル（0〜100）</p>
           </div>
         </div>
         <div class="legend">
-          <span><i class="line orange"></i>個人平均</span>
-          <span><i class="line navy"></i>全体平均</span>
-          <span>METs絶対値で表示</span>
+          <span><i class="line orange"></i>個人活動パターン</span>
+          <span><i class="line navy"></i>全体活動パターン</span>
+          <span>15分移動平均、95パーセンタイル正規化</span>
         </div>
         <canvas id="personalAverageCanvas" width="1180" height="460" aria-label="personal average versus weekday average"></canvas>
       </section>
@@ -168,7 +168,7 @@
           <span>7</span>
           <div>
             <h2>活動強度パターンカラーマップ</h2>
-            <p>各日の詳細データを横方向に時刻、縦方向に各日として並べ、活動強度の分布を色で表示</p>
+            <p>各日の詳細データを横方向に時刻、縦方向にファイルとして並べ、活動強度の分布を色で表示</p>
             <p>指定した色上限以上は同じ色で表示し、0・非装着・欠損は暗色で表示</p>
           </div>
         </div>
@@ -233,7 +233,7 @@
           <div class="control-row compact-controls">
             <label>全体指標CSV
               <input id="paramInput" class="inline-file" type="file" accept=".csv,text/csv" />
-              <small id="paramFileName">data/physical_activity_param_IDremove.csv</small>
+              <small id="paramFileName">data/physical_activity_param_anonymized.csv</small>
             </label>
             <label>個人指標CSV
               <input id="personalParamInput" class="inline-file" type="file" accept=".csv,text/csv" />
