@@ -1832,32 +1832,39 @@ async function handlePersonalParamFile(file) {
 
 function drawPersonalAverageComparison() {
   const canvas = el('personalAverageCanvas');
+  if (!canvas) return;
   const { ctx, w, h } = getCanvasContext(canvas);
-  if (!state.processedDays.length) return drawNoData(ctx, w, h, 'processed CSVを読み込むと、個人と全体の活動パターンを比較します。');
+  if (!state.processedDays.length) {
+    return drawNoData(ctx, w, h, 'processed CSVを読み込むと、個人平均と全体平均を比較します。');
+  }
   clearCanvas(ctx, w, h);
 
   const startMinute = FIXED_DISPLAY_START_MINUTE;
   const endMinute = FIXED_DISPLAY_END_MINUTE;
-  const personal = computePersonalAverage();
-  const classAll = state.weekdayAverage.map((r) => ({ minute: r.minute, mets: r.all }));
-  const personalPattern = makeRelativeActivityPattern(personal, 'mets', startMinute, endMinute);
-  const classPattern = makeRelativeActivityPattern(classAll, 'mets', startMinute, endMinute);
+  const personalAverage = computePersonalAverage();
+  const classAverage = state.weekdayAverage.map((r) => ({
+    minute: r.minute,
+    mets: r.all,
+  }));
 
-  const yMax = 100;
+  const yMax = 6;
   const box = chartBox(w, h, 104, 42, 34, 92);
   const spanHours = (endMinute - startMinute) / 60;
   const hourStep = spanHours <= 6 ? 1 : spanHours <= 12 ? 2 : 4;
   drawTimeGrid(ctx, box, yMax, startMinute, endMinute, hourStep, {
     yMin: 0,
-    yGridStep: 20,
-    yLabelStep: 20,
-    yDigits: 0,
-    yAxisLabel: '相対活動レベル',
+    yGridStep: 1,
+    yLabelStep: 1,
+    yDigits: 1,
+    yAxisLabel: 'METs',
     xAxisLabel: '時刻',
+    strictIntegerGrid: true,
   });
 
-  drawLineSeries(ctx, personalPattern, box, yMax, COLORS.orange, startMinute, endMinute, 'level', 2.8, false, 0.95, 0);
-  drawLineSeries(ctx, classPattern, box, yMax, COLORS.navy, startMinute, endMinute, 'level', 4.2, false, 0.82, 0);
+  drawLineSeries(ctx, personalAverage, box, yMax, COLORS.orange, startMinute, endMinute, 'mets', 2.8, false, 0.95, 0);
+  if (classAverage.some((row) => Number.isFinite(row.mets))) {
+    drawLineSeries(ctx, classAverage, box, yMax, COLORS.navy, startMinute, endMinute, 'mets', 4.2, false, 0.82, 0);
+  }
   ctx.fillStyle = COLORS.navy;
   ctx.font = chartFont(800, 19);
   ctx.textAlign = 'left';
@@ -2245,34 +2252,168 @@ function drawPracticeDensity() {
     return drawNoData(ctx, w, h, '全員時系列CSVを読み込むと表示します。');
   }
 
-  const { classValues, personalValues } = collectPracticeValues();
+  const { startSecond, endSecond } = getPracticeBounds(summary);
+
+  // 全員データ: 表示開始時刻から表示終了時刻までの全参加者・全時点のMETs値を使う
+  const classValues = [];
+  summary.rows.forEach((row) => {
+    summary.times.forEach((second, i) => {
+      const v = row.values[i];
+      if (second >= startSecond && second <= endSecond && validPracticeMets(v)) {
+        classValues.push(v);
+      }
+    });
+  });
+
+  // 個人データ: 同じ時刻範囲内の値だけを四分位範囲・中央値として表示する
+  const personalValues = (state.practicePersonal?.series || [])
+    .filter((row) => row.second >= startSecond && row.second <= endSecond)
+    .map((row) => row.mets)
+    .filter(validPracticeMets);
+
   if (!classValues.length) return drawNoData(ctx, w, h, '有効なMETsデータがありません。');
 
   const maxValue = maxFiniteValue(classValues.concat(personalValues), 5);
+  const xMin = 0;
   const xMax = Math.max(5, Math.ceil(maxValue));
-  const classDensity = smoothHistogramDensity(classValues, xMax, 90);
-  const classDensities = practiceSummaryRowsAsPoints(summary)
-    .map((row) => smoothHistogramDensity(practiceValuesFromPoints(row), xMax, 90))
-    .filter((density) => density.length);
-  const personalDensity = smoothHistogramDensity(personalValues, xMax, 90);
-  const yMax = Math.max(
-    0.1,
-    Math.ceil(Math.max(
-      ...classDensity.map((p) => p.density),
-      ...classDensities.flatMap((density) => density.map((p) => p.density)),
-      ...(personalDensity.length ? personalDensity.map((p) => p.density) : [0])
-    ) * 10) / 10
-  );
+  const bins = Math.min(70, Math.max(24, Math.ceil(Math.sqrt(classValues.length))));
+  const binWidth = (xMax - xMin) / bins;
+  const counts = Array.from({ length: bins }, () => 0);
 
-  const box = chartBox(w, h, 92, 44, 42, 88);
-  drawDensityGrid(ctx, box, xMax, yMax);
-  classDensities.forEach((density) => {
-    drawDensityLine(ctx, density, box, xMax, yMax, 'rgba(203, 213, 225, 0.22)', 1.3, 0.85);
+  classValues.forEach((v) => {
+    let idx = Math.floor((v - xMin) / binWidth);
+    if (idx < 0) idx = 0;
+    if (idx >= bins) idx = bins - 1;
+    counts[idx] += 1;
   });
-  drawDensityLine(ctx, classDensity, box, xMax, yMax, 'rgba(203, 213, 225, 0.88)', 2.4, 0.9);
-  if (personalValues.length) {
-    drawDensityLine(ctx, personalDensity, box, xMax, yMax, COLORS.amber, 3.2, 1);
+
+  const axis = niceZeroBasedAxis(Math.max(...counts), 5);
+  const yMax = axis.yMax;
+  const yStep = axis.yStep;
+  const box = chartBox(w, h, 92, 48, 42, 92);
+  const xOf = (value) => box.left + ((value - xMin) / Math.max(1e-9, xMax - xMin)) * box.width;
+  const yOf = (value) => box.bottom - (value / Math.max(1e-9, yMax)) * box.height;
+
+  ctx.save();
+
+  // grid and y-axis
+  ctx.strokeStyle = COLORS.grid;
+  ctx.lineWidth = 1.25;
+  ctx.fillStyle = COLORS.muted;
+  ctx.font = chartFont(700, 15);
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  for (let v = 0; v <= yMax + 1e-9; v += yStep) {
+    const y = yOf(v);
+    ctx.beginPath();
+    ctx.moveTo(box.left, y);
+    ctx.lineTo(box.right, y);
+    ctx.stroke();
+    ctx.fillText(fmtNumber(v), box.left - 12, y);
   }
+
+  // x-axis
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  const xTicks = linearTicks(xMin, xMax, 6);
+  xTicks.forEach((tick) => {
+    const x = xOf(tick);
+    ctx.beginPath();
+    ctx.moveTo(x, box.top);
+    ctx.lineTo(x, box.bottom);
+    ctx.stroke();
+    ctx.strokeStyle = COLORS.axis;
+    ctx.beginPath();
+    ctx.moveTo(x, box.bottom);
+    ctx.lineTo(x, box.bottom + 7);
+    ctx.stroke();
+    ctx.strokeStyle = COLORS.grid;
+    ctx.fillText(fmtNumber(tick, 1), x, box.bottom + 14);
+  });
+
+  // axes
+  ctx.strokeStyle = COLORS.axis;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(box.left, box.bottom);
+  ctx.lineTo(box.right, box.bottom);
+  ctx.moveTo(box.left, box.top);
+  ctx.lineTo(box.left, box.bottom);
+  ctx.stroke();
+
+  // class histogram as a grey step-line
+  ctx.save();
+  ctx.strokeStyle = 'rgba(203, 213, 225, 0.92)';
+  ctx.fillStyle = 'rgba(203, 213, 225, 0.10)';
+  ctx.lineWidth = 3;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(xOf(xMin), box.bottom);
+  counts.forEach((count, i) => {
+    const x0 = xOf(xMin + i * binWidth);
+    const x1 = xOf(xMin + (i + 1) * binWidth);
+    const y = yOf(count);
+    if (i === 0) ctx.lineTo(x0, y);
+    ctx.lineTo(x1, y);
+  });
+  ctx.lineTo(xOf(xMax), box.bottom);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+
+  // personal quartile range and median marker, same style as Activity Dashboard
+  if (personalValues.length) {
+    const sorted = [...personalValues].sort((a, b) => a - b);
+    const q1 = percentile(sorted, 0.25);
+    const med = percentile(sorted, 0.5);
+    const q3 = percentile(sorted, 0.75);
+    const y = box.top + 18;
+    const x1 = xOf(Math.max(xMin, Math.min(q1, xMax)));
+    const xm = xOf(Math.max(xMin, Math.min(med, xMax)));
+    const x3 = xOf(Math.max(xMin, Math.min(q3, xMax)));
+
+    ctx.save();
+    ctx.strokeStyle = COLORS.amber;
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x1, y);
+    ctx.lineTo(x3, y);
+    ctx.stroke();
+
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x1, y - 8);
+    ctx.lineTo(x1, y + 8);
+    ctx.moveTo(x3, y - 8);
+    ctx.lineTo(x3, y + 8);
+    ctx.stroke();
+
+    ctx.fillStyle = COLORS.amber;
+    ctx.beginPath();
+    ctx.arc(xm, y, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = COLORS.axis;
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // axis labels
+  ctx.fillStyle = COLORS.ink;
+  ctx.font = chartFont(800, 17);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.save();
+  ctx.translate(box.left - 58, box.top + box.height / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('件数', 0, 0);
+  ctx.restore();
+  ctx.fillText('METs', box.left + box.width / 2, box.bottom + 62);
+
+  ctx.restore();
 }
 
 function drawPracticeHeatmap() {

@@ -132,15 +132,14 @@
         <div class="section-title">
           <span>5</span>
           <div>
-            <h2>個人と全体の活動パターン比較</h2>
-            <p>METsの絶対値ではなく、活動が高まりやすい時間帯のパターンを比較</p>
-            <p>表示範囲は08:00〜20:00、縦軸は相対活動レベル（0〜100）</p>
+            <h2>個人平均と全体平均の比較</h2>
+            <p>個人平均は日数が少ないためピークが残りやすく、全体平均は多人数の平均のため波形が平滑化されます。強度の大小でなく、活動が高まりやすい時間帯などに注目する</p>
           </div>
         </div>
         <div class="legend">
-          <span><i class="line orange"></i>個人活動パターン</span>
-          <span><i class="line navy"></i>全体活動パターン</span>
-          <span>15分移動平均、95パーセンタイル正規化</span>
+          <span><i class="line orange"></i>個人平均</span>
+          <span><i class="line navy"></i>全体平均</span>
+          <span>METs絶対値で表示</span>
         </div>
         <canvas id="personalAverageCanvas" width="1180" height="460" aria-label="personal average versus weekday average"></canvas>
       </section>
@@ -327,11 +326,13 @@
           <canvas id="practiceIntensityCanvas" width="1180" height="540" aria-label="exercise intensity 10-second time series"></canvas>
           <article class="mini-chart summary-wide practice-subchart">
             <h3>活動強度ヒストグラム</h3>
+            <p class="chart-note">全員の表示開始時刻から表示終了時刻までの全データをもとに分布を表示し、個人データは四分位範囲と中央値で示します。</p>
             <div class="legend">
-              <span><i class="line practice-class-line"></i>全員データ</span>
-              <span><i class="line practice-personal-line"></i>個人データ</span>
+              <span><i class="line practice-class-line"></i>全員データの分布</span>
+              <span><i class="quartile-line"></i>個人の四分位範囲</span>
+              <span><i class="median-dot"></i>個人の中央値</span>
             </div>
-            <canvas id="practiceDensityCanvas" width="1180" height="440" aria-label="exercise intensity density"></canvas>
+            <canvas id="practiceDensityCanvas" width="1180" height="440" aria-label="exercise intensity histogram"></canvas>
           </article>
 
           <article class="mini-chart summary-wide practice-subchart">
